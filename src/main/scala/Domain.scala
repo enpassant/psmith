@@ -1,3 +1,4 @@
+import java.util.UUID
 import org.json4s.jackson.Serialization.{ read, writePretty }
 import spray.httpx.Json4sSupport
 import org.json4s.{ DefaultFormats, Formats }
@@ -6,7 +7,7 @@ import spray.httpx.unmarshalling._
 import spray.http.{ ContentType, ContentTypeRange, HttpEntity, MediaType, MediaTypes }
 
 case class MicroService(
-    uuid: String,
+    uuid: String = UUID.randomUUID.toString,
     path: String,
     host: String,
     port: Int = 9000,
