@@ -3,7 +3,7 @@ import akka.pattern.ask
 import spray.routing.{ HttpServiceActor, Route, ValidationRejection }
 
 class Service(val mode: String, model: ActorRef) extends HttpServiceActor
-    with ServiceDirectives with ActorLogging  with ServiceFormats {
+    with ServiceDirectives with ActorLogging  with ServiceFormats with Dev {
     import context.dispatcher
 
     def receive = runRoute {
@@ -47,17 +47,6 @@ class Service(val mode: String, model: ActorRef) extends HttpServiceActor
                 }
             }
         }
-    }
-
-    def debug(route: Route): Route = {
-        if (mode == "dev") {
-            ctx =>
-                val start = System.currentTimeMillis
-                log.debug(ctx.toString)
-                route(ctx)
-                val runningTime = System.currentTimeMillis - start
-                log.debug(s"Running time is ${runningTime} ms")
-        } else route
     }
 }
 // vim: set ts=4 sw=4 et:
