@@ -32,7 +32,8 @@ object Main extends App {
                         IO(Http) ! Http.Bind(proxy, interface = config.host,
                             port = config.port)
 
-                        val service = actorSystem.actorOf(Props(new Service(config.mode)))
+                        val model = actorSystem.actorOf(Props(new Model(config.mode)))
+                        val service = actorSystem.actorOf(Props(new Service(config.mode, model)))
                         IO(Http) ! Http.Bind(service, interface = config.serviceHost,
                             port = config.servicePort)
                 }
