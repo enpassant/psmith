@@ -24,7 +24,7 @@ class Service(val mode: String, model: ActorRef) extends HttpServiceActor
                     get {
                         respondWithJson { ctx =>
                             (model ? GetService(serviceId)) map {
-                                case response: MicroService => ctx.complete(response)
+                                case Some(response: MicroService) => ctx.complete(response)
                                 case _ => ctx.reject()
                             }
                         }
