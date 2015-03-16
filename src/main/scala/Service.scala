@@ -1,27 +1,27 @@
-import akka.actor.ActorRef
+import akka.actor.{ ActorLogging, ActorRef }
 import spray.routing.{ HttpServiceActor, Route, ValidationRejection }
 import org.joda.time.DateTime
 import java.util.UUID
 
-class Service(val mode: String) extends HttpServiceActor with ServiceDirectives {
+class Service(val mode: String) extends HttpServiceActor with ServiceDirectives with ActorLogging {
     import context.dispatcher
 
     def receive = runRoute {
-        log {
+        debug {
             path("") {
                 serviceLinks { headComplete }
             }
         }
     }
 
-    def log(route: Route): Route = {
+    def debug(route: Route): Route = {
         if (mode == "dev") {
             ctx =>
                 val start = System.currentTimeMillis
-                println(ctx)
+                log.debug(ctx.toString)
                 route(ctx)
                 val runningTime = System.currentTimeMillis - start
-                println(s"Running time is ${runningTime} ms")
+                log.debug(s"Running time is ${runningTime} ms")
         } else route
     }
 }
