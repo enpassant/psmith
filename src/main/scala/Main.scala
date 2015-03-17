@@ -5,8 +5,8 @@ import akka.io.IO
 object Main extends App {
     implicit val actorSystem = ActorSystem("psmith")
 
-    case class Config(host: String = "localhost", port: Int = 9000,
-        serviceHost: String = "localhost", servicePort: Int = 9001, mode: String = "dev")
+    case class Config(host: String = "localhost", port: Int = 9100,
+        serviceHost: String = "localhost", servicePort: Int = 9101, mode: String = "dev")
 
     val parser = new scopt.OptionParser[Config]("psmith") {
         head("psmith", "1.0")
@@ -15,9 +15,9 @@ object Main extends App {
         opt[Int]('p', "port") action { (x, c) =>
             c.copy(port = x) } text("port number. Default: 9100")
         opt[String]('H', "service-host") action { (x, c) =>
-            c.copy(host = x) } text("host name or address. Default: localhost")
+            c.copy(serviceHost = x) } text("host name or address. Default: localhost")
         opt[Int]('P', "service-port") action { (x, c) =>
-            c.copy(port = x) } text("port number. Default: 9101")
+            c.copy(servicePort = x) } text("port number. Default: 9101")
         opt[String]('m', "mode") action { (x, c) =>
             c.copy(mode = x) } text("running mode. e.g.: dev, test, prod. Default: dev")
     }
