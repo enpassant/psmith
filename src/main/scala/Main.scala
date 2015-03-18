@@ -24,8 +24,8 @@ object Main extends App {
 
     parser.parse(args, Config()) match {
         case Some(config) =>
-            val model = actorSystem.actorOf(Props(new Model(config.mode)))
-            val proxy = actorSystem.actorOf(Props(new ProxyService(config, model)))
+            val proxy = actorSystem.actorOf(Props(new Proxy(config)))
+            val model = actorSystem.actorOf(Props(new Model(config.mode, proxy)))
             val service = actorSystem.actorOf(Props(new Service(config, model)))
 
         case None =>
