@@ -2,11 +2,11 @@ import akka.event.LoggingAdapter
 import spray.routing.Route
 
 trait Dev {
-    val mode: String
+    val config: Config
     def log: LoggingAdapter
 
     def debug(route: Route): Route = {
-        if (mode == "dev") {
+        if (config.mode == "dev") {
             ctx =>
                 val start = System.currentTimeMillis
                 log.info(ctx.toString)

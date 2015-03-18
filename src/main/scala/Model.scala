@@ -5,6 +5,7 @@ case class GetServices()
 case class GetService(serviceId: String)
 case class PutService(serviceId: String, service: MicroService)
 case class DeleteService(serviceId: String)
+case class FindServices(path: String, runningMode: Option[String])
 
 class Model(val mode: String) extends Actor with ActorLogging {
     import context.dispatcher
@@ -17,6 +18,7 @@ class Model(val mode: String) extends Actor with ActorLogging {
         case GetService(serviceId) =>
             sender ! services.find(_.uuid == serviceId)
         case PutService(serviceId, microService) =>
+            sender ! microService
             val index = services.indexWhere(_.uuid == serviceId)
             if (index >= 0) {
                 context.become(process(
@@ -25,11 +27,16 @@ class Model(val mode: String) extends Actor with ActorLogging {
                 context.become(process(
                     microService :: services))
             }
-            sender ! microService
         case DeleteService(serviceId) =>
+            sender ! ""
             context.become(
                 process(services.filter(_.uuid != serviceId)))
-            sender ! ""
+        case FindServices(path, runningMode) =>
+            val modeServices = services.filter(s =>
+                s.path == path && s.runningMode == runningMode)
+            sender ! (if (modeServices.isEmpty)
+                services.filter(s => s.path == path)
+            else modeServices)
     }
 }
 // vim: set ts=4 sw=4 et:

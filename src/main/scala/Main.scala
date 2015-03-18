@@ -1,12 +1,12 @@
-import akka.actor.{ Actor, ActorRef, ActorSystem, Props }
-import spray.can.Http
+import akka.actor.{ Actor, ActorLogging, ActorRef, ActorSystem, Props }
 import akka.io.IO
+import spray.can.Http
+
+case class Config(host: String = "localhost", port: Int = 9100,
+    serviceHost: String = "localhost", servicePort: Int = 9101, mode: String = "dev")
 
 object Main extends App {
     implicit val actorSystem = ActorSystem("psmith")
-
-    case class Config(host: String = "localhost", port: Int = 9100,
-        serviceHost: String = "localhost", servicePort: Int = 9101, mode: String = "dev")
 
     val parser = new scopt.OptionParser[Config]("psmith") {
         head("psmith", "1.0")
@@ -22,25 +22,11 @@ object Main extends App {
             c.copy(mode = x) } text("running mode. e.g.: dev, test, prod. Default: dev")
     }
 
-    // parser.parse returns Option[C]
     parser.parse(args, Config()) match {
         case Some(config) =>
-            class BaseActor extends Actor {
-                def receive: Receive = {
-                    case "start" =>
-                        val proxy = actorSystem.actorOf(Props(new Proxy(config.mode)))
-                        IO(Http) ! Http.Bind(proxy, interface = config.host,
-                            port = config.port)
-
-                        val model = actorSystem.actorOf(Props(new Model(config.mode)))
-                        val service = actorSystem.actorOf(Props(new Service(config.mode, model)))
-                        IO(Http) ! Http.Bind(service, interface = config.serviceHost,
-                            port = config.servicePort)
-                }
-            }
-
-            val myApp: ActorRef = actorSystem.actorOf(Props(new BaseActor))
-            myApp ! "start"
+            val model = actorSystem.actorOf(Props(new Model(config.mode)))
+            val proxy = actorSystem.actorOf(Props(new ProxyService(config, model)))
+            val service = actorSystem.actorOf(Props(new Service(config, model)))
 
         case None =>
     }

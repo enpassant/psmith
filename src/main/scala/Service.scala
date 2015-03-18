@@ -1,10 +1,16 @@
 import akka.actor.{ ActorLogging, ActorRef }
+import akka.io.IO
 import akka.pattern.ask
+import spray.can.Http
 import spray.routing.{ HttpServiceActor, Route, ValidationRejection }
 
-class Service(val mode: String, model: ActorRef) extends HttpServiceActor
+class Service(val config: Config, model: ActorRef) extends HttpServiceActor
     with ServiceDirectives with ActorLogging  with ServiceFormats with Dev {
     import context.dispatcher
+
+    implicit val system = context.system
+
+    IO(Http) ! Http.Bind(self, interface = config.serviceHost, port = config.servicePort)
 
     def receive = runRoute {
         debug {
