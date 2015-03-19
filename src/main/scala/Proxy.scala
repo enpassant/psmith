@@ -43,8 +43,8 @@ class Proxy(val config: Config)
     {
         val modeServices = services.filter(s =>
             s.path == path && s.runningMode == runningMode)
-        if (modeServices.isEmpty)
-            services.filter(s => s.path == path)
+        if (runningMode != None && modeServices.isEmpty)
+            services.filter(s => s.path == path && s.runningMode == None)
         else modeServices
     }
 
