@@ -23,9 +23,7 @@ import akka.io.IO
 //}
 
 //class Proxy(val config: Config, connection: ActorRef)
-class Proxy(val config: Config)
-    extends Actor with ActorLogging
-{
+class Proxy(val config: Config) extends Actor with ActorLogging {
     import context.dispatcher
     implicit val timeout = Timeout(3.seconds)
     implicit val system = context.system
