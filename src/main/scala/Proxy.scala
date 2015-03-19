@@ -2,7 +2,6 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import scala.concurrent.Future
 import akka.pattern.ask
 import akka.util.Timeout
-import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Success, Failure, Random}
 import spray.can.Http
@@ -36,34 +35,38 @@ class Proxy(val config: Config) extends Actor with ActorLogging {
     private def stripHeaders(headers: List[HttpHeader]):
         List[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
 
-    private def findServices(services: List[MicroService],
-        path: String, runningMode: Option[String]): List[MicroService] =
+    private def findServices(services: MicroServices.Collection,
+        path: String, runningMode: Option[String]): MicroServices.Pipelines =
     {
-        val modeServices = services.filter(s =>
-            s.path == path && s.runningMode == runningMode)
-        if (runningMode != None && modeServices.isEmpty)
-            services.filter(s => s.path == path && s.runningMode == None)
-        else modeServices
+        val key = MicroServices.name(path, runningMode)
+        if (services contains key) {
+            val modeServices = services(key)
+            if (runningMode != None && modeServices.isEmpty)
+                services(MicroServices.name(path, None))
+            else modeServices
+        } else {
+            List()
+        }
     }
 
-    def receive = process(List())
+    def receive = process(Map())
 
-    private def process(services: List[MicroService]): Receive = {
+    private def process(services: MicroServices.Collection): Receive = {
         case Http.Connected(_, _) =>
             sender ! Http.Register(self)
-        case SetServices(newServices) =>
-            log.info(newServices.toString)
-            context.become(process(newServices))
+        case PutService(serviceId, newService) =>
+            log.info(newService.toString)
+            context.become(process(MicroServices(services, newService)))
         case request: HttpRequest =>
             val sndr = sender
-            val microServices: List[MicroService] =
+            val microServices =
                 findServices(services, request.uri.path.tail.head.toString, None)
             if (microServices.isEmpty) {
                 sndr ! HttpResponse(
                     status = StatusCodes.BadGateway,
                     entity = HttpEntity(s"No service for path ${request.uri.path}"))
             } else {
-                val microService = microServices(Random.nextInt(microServices.size))
+                val (microService, pipeline) = microServices(Random.nextInt(microServices.size))
                 val microServicePath = request.uri.path
                 val updatedUri = request.uri
                     .withHost(microService.host)
@@ -74,7 +77,7 @@ class Proxy(val config: Config) extends Actor with ActorLogging {
                     headers = Host(microService.host, microService.port) ::
                         stripHeaders(request.headers))
 
-                val futureResponse = pipeline(updatedRequest)
+                val futureResponse = pipeline.flatMap(_(updatedRequest))
                 futureResponse.onComplete {
                     case Success(response) =>
                         sndr ! response.copy(headers = stripHeaders(response.headers))

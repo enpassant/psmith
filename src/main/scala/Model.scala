@@ -20,13 +20,9 @@ class Model(val mode: String, proxy: ActorRef) extends Actor with ActorLogging {
         case PutService(serviceId, microService) =>
             sender ! microService
             val index = services.indexWhere(_.uuid == serviceId)
-            if (index >= 0) {
-                val newServices = services.updated(index, microService)
-                proxy ! SetServices(newServices)
-                context.become(process(newServices))
-            } else {
+            if (index < 0) {
                 val newServices = microService :: services
-                proxy ! SetServices(newServices)
+                proxy ! PutService(serviceId, microService)
                 context.become(process(newServices))
             }
         case DeleteService(serviceId) =>
