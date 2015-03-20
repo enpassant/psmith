@@ -1,2 +1,2 @@
 # psmith
-Simple load balancer for (REST) microservices
+Simple router and load balancer for (REST) microservices
