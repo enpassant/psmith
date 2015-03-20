@@ -49,15 +49,16 @@ class Proxy(val config: Config) extends Actor with ActorLogging {
         }
     }
 
-    def receive = process(Map())
+    def receive = process(self, Map())
 
-    private def process(services: MicroServices.Collection): Receive = {
+    private def process(model: ActorRef, services: MicroServices.Collection): Receive = {
         case Http.Connected(_, _) =>
             sender ! Http.Register(self)
         case PutService(serviceId, newService) =>
             log.info(newService.toString)
-            context.become(process(MicroServices(services, newService)))
+            context.become(process(sender, MicroServices(services, newService)))
         case request: HttpRequest =>
+            val selfActor = self
             val sndr = sender
             val microServices =
                 findServices(services, request.uri.path.tail.head.toString, None)
@@ -72,22 +73,22 @@ class Proxy(val config: Config) extends Actor with ActorLogging {
                     .withHost(microService.host)
                     .withPort(microService.port)
                     .withPath(microServicePath)
-                val updatedRequest =
-                    request.copy(uri = updatedUri,
-                    headers = Host(microService.host, microService.port) ::
-                        stripHeaders(request.headers))
+                val updatedRequest = request.copy(uri = updatedUri,
+                    headers = stripHeaders(request.headers))
 
                 val futureResponse = pipeline.flatMap(_(updatedRequest))
                 futureResponse.onComplete {
                     case Success(response) =>
                         sndr ! response.copy(headers = stripHeaders(response.headers))
                     case Failure(exn) =>
-//                            model ! DeleteService(microService.uuid)
-                        sndr ! HttpResponse(
-                            status = StatusCodes.BadGateway,
-                            entity = HttpEntity(s"Service for path ${request.uri.path} failed with ${exn}"))
+                        model ! DeleteService(microService.uuid)
+                        context.become(process(model, MicroServices.remove(services, microService)))
+//                        sndr ! HttpResponse(
+//                            status = StatusCodes.BadGateway,
+//                            entity = HttpEntity(s"Service for path ${request.uri.path} failed with ${exn}"))
+                        log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
+                        selfActor.tell(request, sndr)
                 }
-//                Await.result(futureResponse, 10 seconds)
             }
         case msg =>
             log.debug(msg.toString)

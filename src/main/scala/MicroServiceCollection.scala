@@ -32,6 +32,19 @@ object MicroServices {
         }
     }
 
+    def remove(msColl: Collection, service: MicroService): Collection = {
+        val key = name(service.path, service.runningMode)
+        if (msColl contains key) {
+            val services = msColl(key) filterNot {
+                case (s, p) => (service.uuid == s.uuid) ||
+                    (service.host == s.host && service.port == s.port)
+            }
+            msColl + (key -> services)
+        } else {
+            msColl
+        }
+    }
+
     def name(path: String, runningMode: Option[String]) = s"${path}-${runningMode}"
 }
 // vim: set ts=4 sw=4 et:
