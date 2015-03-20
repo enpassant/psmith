@@ -10,17 +10,6 @@ import spray.http._
 import spray.client.pipelining._
 import akka.io.IO
 
-//class ProxyService(val config: Config) extends Actor with ActorLogging with Dev {
-//    implicit val system = context.system
-//
-//    IO(Http) ! Http.Bind(self, interface = config.host, port = config.port)
-//
-//    override def receive: Receive = {
-//        case Http.Connected(_, _) =>
-//            sender ! Http.Register(context.actorOf(Props(new Proxy(config, sender))))
-//    }
-//}
-
 //class Proxy(val config: Config, connection: ActorRef)
 class Proxy(val config: Config) extends Actor with ActorLogging {
     import context.dispatcher
@@ -60,8 +49,9 @@ class Proxy(val config: Config) extends Actor with ActorLogging {
         case request: HttpRequest =>
             val selfActor = self
             val sndr = sender
+            val runningMode = request.cookies.find(_.name == "runningMode").map(_.content)
             val microServices =
-                findServices(services, request.uri.path.tail.head.toString, None)
+                findServices(services, request.uri.path.tail.head.toString, runningMode)
             if (microServices.isEmpty) {
                 sndr ! HttpResponse(
                     status = StatusCodes.BadGateway,
