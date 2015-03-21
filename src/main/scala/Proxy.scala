@@ -4,8 +4,10 @@ import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.duration._
 import scala.util.{Success, Failure, Random}
+import spray.caching._
 import spray.can.Http
 import spray.http.HttpHeaders._
+import spray.http.HttpMethods._
 import spray.http._
 import spray.client.pipelining._
 import akka.io.IO
@@ -18,6 +20,9 @@ class Proxy(val config: Config) extends Actor with ActorLogging {
     private val pipeline = sendReceive
     val managedHeaders = List("Host", "Server", "Date", "Content-Type",
         "Content-Length", "Transfer-Encoding")
+    val readMethods = List(GET, HEAD, OPTIONS)
+
+    val cache: Cache[HttpResponse] = LruCache(timeToLive = 60 seconds, timeToIdle = 10 seconds)
 
     IO(Http) ! Http.Bind(self, interface = config.host, port = config.port)
 
@@ -58,25 +63,39 @@ class Proxy(val config: Config) extends Actor with ActorLogging {
                     status = StatusCodes.BadGateway,
                     entity = HttpEntity(s"No service for path ${request.uri.path}"))
             } else {
-                val (microService, pipeline) = microServices(Random.nextInt(microServices.size))
                 val microServicePath = request.uri.path
-                val updatedUri = request.uri
-                    .withHost(microService.host)
-                    .withPort(microService.port)
-                    .withPath(microServicePath)
-                val updatedRequest = request.copy(uri = updatedUri,
-                    headers = stripHeaders(request.headers))
+                val (microService, pipeline) = microServices(Random.nextInt(microServices.size))
+                def serviceFn = {
+                    val updatedUri = request.uri
+                        .withHost(microService.host)
+                        .withPort(microService.port)
+                        .withPath(microServicePath)
+                    val updatedRequest = request.copy(uri = updatedUri,
+                        headers = stripHeaders(request.headers))
 
-                val futureResponse = pipeline.flatMap(_(updatedRequest))
+                    pipeline.flatMap(_(updatedRequest))
+                }
+                val futureResponse = if (readMethods contains request.method) {
+                    val cacheKey = microServicePath + "_" + runningMode.toString
+                    cache(cacheKey) {
+                        serviceFn
+                    }
+                } else {
+                    @annotation.tailrec
+                    def removeKey(prefix: String, path: Uri.Path): Unit = {
+                        val cacheKey = prefix + path.head + "_" + runningMode.toString
+                        cache.remove(cacheKey)
+                        if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
+                    }
+                    removeKey("", microServicePath)
+                    serviceFn
+                }
                 futureResponse.onComplete {
                     case Success(response) =>
                         sndr ! response.copy(headers = stripHeaders(response.headers))
                     case Failure(exn) =>
                         model ! DeleteService(microService.uuid)
                         context.become(process(model, MicroServices.remove(services, microService)))
-//                        sndr ! HttpResponse(
-//                            status = StatusCodes.BadGateway,
-//                            entity = HttpEntity(s"Service for path ${request.uri.path} failed with ${exn}"))
                         log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
                         selfActor.tell(request, sndr)
                 }

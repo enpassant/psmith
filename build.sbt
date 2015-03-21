@@ -6,7 +6,7 @@ scalaVersion := "2.11.6"
 
 resolvers += "spray repo" at "http://repo.spray.io"
 
-val sprayVersion = "1.3.1"
+val sprayVersion = "1.3.2"
 
 val akkaVersion = "2.3.9"
 
@@ -16,6 +16,8 @@ Revolver.settings
 
 resolvers += Resolver.sonatypeRepo("public")
 
+resolvers += "spray repo" at "http://repo.spray.io"
+
 libraryDependencies ++= Seq(
   "com.github.scopt"       %% "scopt"                 % "3.3.0",
   "com.typesafe.akka"      %% "akka-actor"            % akkaVersion,
@@ -24,7 +26,10 @@ libraryDependencies ++= Seq(
 //  "io.spray"                % "spray-can"             % sprayVersion,
   "io.spray"               %% "spray-client"          % sprayVersion,
   "io.spray"               %% "spray-routing"         % sprayVersion,
-  "io.spray"               %% "spray-json"            % sprayVersion,
+//  "io.spray"               %% "spray-json"            % sprayVersion,
+  "io.spray"               %% "spray-util"          % sprayVersion,
+  "io.spray"               %% "spray-caching"          % sprayVersion,
+  "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2",
 //  "org.specs2"             %% "specs2"                % "2.2.2"        % "test",
 //  "com.typesafe.akka"      %% "akka-testkit"          % akkaVersion    % "test",
   "com.github.nscala-time" %% "nscala-time"           % "1.8.0",
