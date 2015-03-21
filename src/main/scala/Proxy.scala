@@ -30,8 +30,9 @@ class Proxy(val config: Config) extends Actor with ActorLogging {
         val key = MicroServices.name(path, runningMode)
         if (services contains key) {
             val modeServices = services(key)
-            if (runningMode != None && modeServices.isEmpty)
-                services(MicroServices.name(path, None))
+            val keyNone = MicroServices.name(path, None)
+            if (runningMode != None && modeServices.isEmpty && services.contains(keyNone))
+                services(keyNone)
             else modeServices
         } else {
             List()
