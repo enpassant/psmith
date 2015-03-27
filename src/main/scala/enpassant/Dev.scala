@@ -1,3 +1,7 @@
+package enpassant
+
+import core.Config
+
 import akka.event.LoggingAdapter
 import spray.routing.Route
 

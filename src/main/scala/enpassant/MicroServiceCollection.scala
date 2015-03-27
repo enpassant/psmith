@@ -1,3 +1,7 @@
+package enpassant
+
+import core.MicroService
+
 import akka.actor.ActorContext
 import akka.io.IO
 import akka.pattern.ask

@@ -1,3 +1,5 @@
+package core
+
 import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
@@ -10,6 +12,8 @@ import spray.httpx.unmarshalling._
 import scala.reflect.ClassTag
 
 trait CommonDirectives extends HttpService {
+    val model: ActorRef
+
     implicit val timeout = Timeout(10.seconds)
     import scala.concurrent.ExecutionContext.Implicits.global
 

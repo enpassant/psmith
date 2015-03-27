@@ -1,10 +1,14 @@
+package enpassant
+
+import core.{MicroService, ServiceFormats, Config}
+
 import akka.actor.{ ActorLogging, ActorRef }
 import akka.io.IO
 import akka.pattern.ask
 import spray.can.Http
 import spray.routing.{ HttpServiceActor, Route, ValidationRejection }
 
-class Service(val config: Config, model: ActorRef) extends HttpServiceActor
+class Service(val config: Config, val model: ActorRef) extends HttpServiceActor
     with ServiceDirectives with ActorLogging  with ServiceFormats with Dev {
     import context.dispatcher
 
@@ -21,7 +25,7 @@ class Service(val config: Config, model: ActorRef) extends HttpServiceActor
                 (pathEnd compose get) {
                     respondWithJson { ctx =>
                         (model ? GetServices) map {
-                            case response: List[MicroService] => ctx.complete(response)
+                            case response: List[MicroService @unchecked] => ctx.complete(response)
                             case _ => ctx.reject()
                         }
                     }

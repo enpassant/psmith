@@ -1,3 +1,7 @@
+package enpassant
+
+import core.MicroService
+
 import akka.actor.{ ActorLogging, Actor, ActorRef }
 import spray.routing.{ HttpServiceActor, Route, ValidationRejection }
 
@@ -7,7 +11,7 @@ case class PutService(serviceId: String, service: MicroService)
 case class DeleteService(serviceId: String)
 case class SetServices(services: List[MicroService])
 
-class Model(val mode: String, proxy: ActorRef) extends Actor with ActorLogging {
+class Model(val mode: Option[String], proxy: ActorRef) extends Actor with ActorLogging {
     import context.dispatcher
 
     def receive = process(List())

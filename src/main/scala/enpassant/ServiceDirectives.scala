@@ -1,3 +1,6 @@
+package enpassant
+
+import core.CommonDirectives
 import spray.http.HttpMethods._
 
 trait ServiceDirectives extends CommonDirectives {
