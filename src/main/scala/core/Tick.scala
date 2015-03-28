@@ -21,7 +21,7 @@ class TickActor(val config: Config) extends Actor with ActorLogging  with Servic
     import scala.concurrent.ExecutionContext.Implicits.global
 
     val serviceUri = s"http://${config.router.get}/services"
-    val microService = MicroService(UUID.randomUUID.toString, "blogs",
+    val microService = MicroService(UUID.randomUUID.toString, config.name,
         config.host, config.port, config.mode)
 
     def register() = {

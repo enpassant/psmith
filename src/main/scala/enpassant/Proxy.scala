@@ -2,6 +2,7 @@ package enpassant
 
 import core.{MicroService, TickActor}
 import core.Config
+import core.Restart
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import scala.concurrent.Future
@@ -60,15 +61,16 @@ class Proxy(val config: Config, val tickActor: Option[ActorRef]) extends Actor w
         case request: HttpRequest =>
             val selfActor = self
             val sndr = sender
+            tickActor map { _ ! Restart }
             val runningMode = request.cookies.find(_.name == "runningMode").map(_.content)
+            val microServicePath = request.uri.path.tail.tail
             val microServices =
-                findServices(services, request.uri.path.tail.head.toString, runningMode)
+                findServices(services, microServicePath.tail.head.toString, runningMode)
             if (microServices.isEmpty) {
                 sndr ! HttpResponse(
                     status = StatusCodes.BadGateway,
                     entity = HttpEntity(s"No service for path ${request.uri.path}"))
             } else {
-                val microServicePath = request.uri.path
                 val (microService, pipeline) = microServices(Random.nextInt(microServices.size))
                 def serviceFn = {
                     val updatedUri = request.uri
