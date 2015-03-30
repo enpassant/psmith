@@ -43,7 +43,8 @@ object MicroServices {
                 case (s, p) => (service.uuid == s.uuid) ||
                     (service.host == s.host && service.port == s.port)
             }
-            msColl + (key -> services)
+            if (services.isEmpty) msColl - key
+            else msColl + (key -> services)
         } else {
             msColl
         }

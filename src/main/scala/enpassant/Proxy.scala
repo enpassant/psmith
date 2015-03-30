@@ -39,12 +39,11 @@ class Proxy(val config: Config, val tickActor: Option[ActorRef]) extends Actor w
         path: String, runningMode: Option[String]): MicroServices.Pipelines =
     {
         val key = MicroServices.name(path, runningMode)
+        val keyNone = MicroServices.name(path, None)
         if (services contains key) {
-            val modeServices = services(key)
-            val keyNone = MicroServices.name(path, None)
-            if (runningMode != None && modeServices.isEmpty && services.contains(keyNone))
-                services(keyNone)
-            else modeServices
+            services(key)
+        } else if (runningMode != None && services.contains(keyNone)) {
+            services(keyNone)
         } else {
             List()
         }
