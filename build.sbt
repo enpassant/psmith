@@ -37,7 +37,8 @@ libraryDependencies ++= Seq(
 //  "joda-time"              %% "joda-time"             % "2.7",
   "org.json4s"             %% "json4s-jackson"        % "3.2.10",
   "org.json4s"             %% "json4s-ext"            % "3.2.10",
-  "io.spray"               %% "spray-testkit"         % sprayVersion   % "test"
+  "io.spray"               %% "spray-testkit"         % sprayVersion   % "test",
+  "nl.grons"               %% "metrics-scala"         % "3.4.0_a2.3"
 )
 
 scalacOptions ++= Seq(
