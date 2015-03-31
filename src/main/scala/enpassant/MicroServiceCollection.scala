@@ -50,6 +50,9 @@ object MicroServices {
         }
     }
 
-    def name(path: String, runningMode: Option[String]) = s"${path}-${runningMode}"
+    def name(path: String, runningMode: Option[String]) = runningMode match {
+        case Some(mode) => s"${path}-${mode}"
+        case None => s"${path}"
+    }
 }
 // vim: set ts=4 sw=4 et:
