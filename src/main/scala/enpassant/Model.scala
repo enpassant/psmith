@@ -25,18 +25,16 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
 
     def receive = {
         case GetServices =>
-            sender ! Model.servicesById.values.toList
+            sender ! Model.services.values.flatMap(_.map(_._1))
 
         case GetService(serviceId) =>
-            sender ! Model.servicesById(serviceId)
+            sender ! Model.findServiceById(serviceId)
 
         case PutService(serviceId, microService) =>
             Model.deleteServices(microService)
 
-            val service = Model.servicesById.get(serviceId)
+            val service = Model.findServiceById(serviceId)
             if (service == None) {
-                Model.servicesById(serviceId) = microService
-
                 implicit val timeout = Timeout(3.seconds)
                 implicit val system = context.system
 
@@ -55,7 +53,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
             sender ! microService
 
         case DeleteService(serviceId) =>
-            Model.servicesById.remove(serviceId) match {
+            Model.findServiceById(serviceId) match {
                 case Some(service) =>
                     Model.deleteServices(service)
                 case None =>
@@ -68,8 +66,15 @@ object Model {
     type Pipelines = List[(MicroService, Future[SendReceive])]
     type Collection = scala.collection.mutable.Map[String, Pipelines]
 
-    var servicesById = scala.collection.mutable.Map.empty[String, MicroService]
     var services: Model.Collection = scala.collection.mutable.Map.empty[String, Model.Pipelines]
+
+    def getAllServices = {
+        services.values.flatMap(_.map(_._1))
+    }
+
+    def findServiceById(serviceId: String) = {
+        getAllServices.find(_.uuid == serviceId)
+    }
 
     def findServices(path: String, runningMode: Option[String]): Model.Pipelines = {
         val key = name(path, runningMode)
