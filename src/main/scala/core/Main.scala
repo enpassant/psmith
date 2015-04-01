@@ -40,8 +40,8 @@ object Main extends App {
             }
             tickActor.map(_ ! Tick)
 
-            val proxy = actorSystem.actorOf(Props(new Proxy(config, tickActor)))
-            val model = actorSystem.actorOf(Props(new Model(config.mode, proxy)))
+            val model = actorSystem.actorOf(Props(new Model(config.mode)))
+            val proxy = actorSystem.actorOf(Props(new Proxy(config, model, tickActor)))
             val service = actorSystem.actorOf(Props(new Service(config, model)))
 
         case None =>
