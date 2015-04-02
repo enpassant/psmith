@@ -1,11 +1,12 @@
 package enpassant
 
-import core.MicroService
+import core.{Instrumented, MicroService}
 
-import akka.actor.{ ActorLogging, Actor, ActorRef }
+import akka.actor.{ActorLogging, Actor, ActorRef}
 import akka.io.IO
 import akka.pattern.ask
 import akka.util.Timeout
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 import scala.concurrent.Future
 import spray.can.Http
@@ -19,6 +20,9 @@ case class GetService(serviceId: String)
 case class PutService(serviceId: String, service: MicroService)
 case class DeleteService(serviceId: String)
 case class SetServices(services: List[MicroService])
+
+case class Latency(time: Long)
+case class GetMetrics()
 
 class Model(val mode: Option[String]) extends Actor with ActorLogging {
     import context.dispatcher
@@ -59,14 +63,29 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
                 case None =>
             }
             sender ! ""
+
+        case Latency(time) =>
+            Model.requestLatency.update(time, TimeUnit.MILLISECONDS)
+
+        case GetMetrics =>
+            sender ! Map[String, Any](
+                ("count" -> Model.requestLatency.count),
+                ("min" -> Model.requestLatency.min / 1000000),
+                ("max" -> Model.requestLatency.max / 1000000),
+                ("mean" -> Model.requestLatency.mean / 1000000),
+                ("stdDev" -> Model.requestLatency.stdDev / 1000000),
+                ("oneMinuteRate" -> Model.requestLatency.oneMinuteRate))
+
     }
 }
 
-object Model {
+object Model extends Instrumented {
     type Pipelines = List[(MicroService, Future[SendReceive])]
     type Collection = scala.collection.mutable.Map[String, Pipelines]
 
-    var services: Model.Collection = scala.collection.mutable.Map.empty[String, Model.Pipelines]
+    private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Model.Pipelines]
+
+    private val requestLatency = metrics.timer("requestLatency")
 
     def getAllServices = {
         services.values.flatMap(_.map(_._1))

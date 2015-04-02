@@ -2,11 +2,12 @@ package enpassant
 
 import core.{Config, Instrumented, MicroService, Restart, TickActor}
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props, Terminated}
 import akka.io.IO
-import akka.pattern.ask
+import akka.io.Tcp
+import akka.pattern.{ask, pipe}
 import akka.util.Timeout
-import java.util.concurrent.TimeUnit
+import java.net.InetSocketAddress
 import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.{Success, Failure, Random}
@@ -18,7 +19,7 @@ import spray.http._
 import spray.client.pipelining._
 
 class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[ActorRef])
-    extends Actor with ActorLogging with Instrumented
+    extends Actor with ActorLogging
 {
     import context.dispatcher
     implicit val timeout = Timeout(3.seconds)
@@ -26,12 +27,10 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
     private val pipeline = sendReceive
     val managedHeaders = List("Host", "Server", "Date", "Content-Type",
         "Content-Length", "Transfer-Encoding")
-    val readMethods = List(GET, HEAD, OPTIONS)
-//    val readMethods = List()
+//    val readMethods = List(GET, HEAD, OPTIONS)
+    val readMethods = List()
 
     val cache: Cache[HttpResponse] = LruCache(timeToLive = 60 seconds, timeToIdle = 10 seconds)
-
-    val requestLatency = metrics.timer("requestLatency")
 
     IO(Http) ! Http.Bind(self, interface = config.host, port = config.port)
 
@@ -39,17 +38,10 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
         List[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
 
     def receive = {
-        case Http.Connected(_, _) =>
-            sender ! Http.Register(self)
-//        case request: HttpRequest if request.uri.path.tail.tail.tail.head.toString == "metrics" =>
-//            sender ! HttpResponse(
-//                status = StatusCodes.OK,
-//                entity = HttpEntity(s"Count: ${requestLatency.count}, " +
-//                    s"min: ${requestLatency.min / 1000000}, " +
-//                    s"max: ${requestLatency.max / 1000000}, " +
-//                    s"mean: ${requestLatency.mean / 1000000}, " +
-//                    s"stdDev: ${requestLatency.stdDev / 1000000}, " +
-//                    s"oneMinuteRate: ${requestLatency.oneMinuteRate}."))
+        case Tcp.Connected(remote, _) =>
+            log.debug(s"Connected($remote)")
+            sender ! Tcp.Register(self)
+
         case request: HttpRequest =>
             val selfActor = self
             val sndr = sender
@@ -92,17 +84,27 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
                 }
                 futureResponse.onComplete {
                     case Success(response) =>
-                        val end = System.currentTimeMillis
-                        requestLatency.update(end - start, TimeUnit.MILLISECONDS)
-                        sndr ! response.copy(headers = stripHeaders(response.headers))
+//                        val end = System.currentTimeMillis
+//                        requestLatency.update(end - start, TimeUnit.MILLISECONDS)
+//                        sndr ! response.copy(headers = stripHeaders(response.headers))
+                        selfActor ! ((start, sndr, response))
                     case Failure(exn) =>
                         model ! DeleteService(microService.uuid)
                         log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
                         selfActor.tell(request, sndr)
                 }
             }
+
+        case (start: Long, sndr: ActorRef, response: HttpResponse) =>
+            val end = System.currentTimeMillis
+            model ! Latency(end - start)
+            sndr ! response.copy(headers = stripHeaders(response.headers))
+
+        case c: Tcp.ConnectionClosed =>
+            log.debug("Connection for remote address closed ({})", c)
+
         case msg =>
-            log.debug(msg.toString)
+            log.info("ConnectionHandler: {}", msg)
 
     }
 }

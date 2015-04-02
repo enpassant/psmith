@@ -21,6 +21,16 @@ class Service(val config: Config, val model: ActorRef) extends HttpServiceActor
             path("") {
                 serviceLinks { headComplete }
             } ~
+            pathPrefix("metrics") {
+                (pathEnd compose get) {
+                    respondWithJson { ctx =>
+                        (model ? GetMetrics) map {
+                            case metrics: Any => ctx.complete(metrics.toString)
+//                            case _ => ctx.reject()
+                        }
+                    }
+                }
+            } ~
             pathPrefix("services") {
                 (pathEnd compose get) {
                     respondWithJson { ctx =>
