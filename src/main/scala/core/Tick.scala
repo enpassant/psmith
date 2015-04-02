@@ -16,7 +16,7 @@ case class Tick()
 case class Restart()
 
 class TickActor(val config: Config) extends Actor with ActorLogging  with ServiceFormats {
-    implicit val system: ActorSystem = ActorSystem("james")
+    implicit val system: ActorSystem = ActorSystem("psmith")
     implicit val timeout: Timeout = Timeout(15.seconds)
     import scala.concurrent.ExecutionContext.Implicits.global
 

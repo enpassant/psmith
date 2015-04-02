@@ -12,10 +12,10 @@ case class Config(host: String = "localhost", port: Int = 9100,
     name: String = "api")
 
 object Main extends App {
-    implicit val actorSystem = ActorSystem("james")
+    implicit val actorSystem = ActorSystem("psmith")
 
-    val parser = new scopt.OptionParser[Config]("james") {
-        head("james", "1.0")
+    val parser = new scopt.OptionParser[Config]("psmith") {
+        head("psmith", "1.0")
         opt[String]('h', "host") action { (x, c) =>
             c.copy(host = x) } text("host. Default: localhost")
         opt[Int]('p', "port") action { (x, c) =>
