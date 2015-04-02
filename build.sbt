@@ -1,4 +1,4 @@
-name := """james"""
+name := """psmith"""
 
 version := "1.0"
 
