@@ -1,6 +1,6 @@
 package enpassant
 
-import core.{Instrumented, MicroService}
+import core.{Instrumented, Metrics, MicroService}
 
 import akka.actor.{ActorLogging, Actor, ActorRef}
 import akka.io.IO
@@ -12,7 +12,7 @@ import scala.concurrent.Future
 import spray.can.Http
 import spray.http._
 import spray.client.pipelining._
-import spray.routing.{ HttpServiceActor, Route, ValidationRejection }
+import spray.routing.{HttpServiceActor, Route, ValidationRejection}
 import spray.client.pipelining._
 
 case class GetServices()
@@ -68,14 +68,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
             Model.requestLatency.update(time, TimeUnit.MILLISECONDS)
 
         case GetMetrics =>
-            sender ! Map[String, Any](
-                ("count" -> Model.requestLatency.count),
-                ("min" -> Model.requestLatency.min / 1000000),
-                ("max" -> Model.requestLatency.max / 1000000),
-                ("mean" -> Model.requestLatency.mean / 1000000),
-                ("stdDev" -> Model.requestLatency.stdDev / 1000000),
-                ("oneMinuteRate" -> Model.requestLatency.oneMinuteRate))
-
+            sender ! Metrics(Model.requestLatency, 0, 0)
     }
 }
 

@@ -1,6 +1,6 @@
 package enpassant
 
-import core.{MicroService, ServiceFormats, Config}
+import core.{Config, Metrics, MetricsFormats, MicroService, ServiceFormats}
 
 import akka.actor.{ ActorLogging, ActorRef }
 import akka.io.IO
@@ -9,7 +9,8 @@ import spray.can.Http
 import spray.routing.{ HttpServiceActor, Route, ValidationRejection }
 
 class Service(val config: Config, val model: ActorRef) extends HttpServiceActor
-    with ServiceDirectives with ActorLogging  with ServiceFormats with Dev {
+    with ServiceDirectives with ActorLogging
+    with ServiceFormats with MetricsFormats with Dev {
     import context.dispatcher
 
     implicit val system = context.system
@@ -25,7 +26,7 @@ class Service(val config: Config, val model: ActorRef) extends HttpServiceActor
                 (pathEnd compose get) {
                     respondWithJson { ctx =>
                         (model ? GetMetrics) map {
-                            case metrics: Any => ctx.complete(metrics.toString)
+                            case metrics: Metrics => ctx.complete(metrics)
 //                            case _ => ctx.reject()
                         }
                     }
