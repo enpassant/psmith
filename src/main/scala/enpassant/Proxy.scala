@@ -46,18 +46,19 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
             val selfActor = self
             val sndr = sender
             tickActor map { _ ! Restart }
+            model ! Started
             val runningMode = request.cookies.find(_.name == "runningMode").map(_.content)
             val microServicePath = request.uri.path.tail.tail
             val microServices =
                 Model.findServices(microServicePath.tail.head.toString, runningMode)
             if (microServices.isEmpty) {
+                model ! Failed
                 sndr ! HttpResponse(
                     status = StatusCodes.BadGateway,
                     entity = HttpEntity(s"No service for path ${request.uri.path}"))
             } else {
                 val (microService, pipeline) = microServices(Random.nextInt(microServices.size))
                 val start = System.currentTimeMillis
-                model ! Started
                 def serviceFn = {
                     val updatedUri = request.uri
                         .withHost(microService.host)
