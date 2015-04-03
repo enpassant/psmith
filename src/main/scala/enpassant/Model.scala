@@ -21,6 +21,8 @@ case class PutService(serviceId: String, service: MicroService)
 case class DeleteService(serviceId: String)
 case class SetServices(services: List[MicroService])
 
+case class Started()
+case class Failed()
 case class Latency(time: Long)
 case class GetMetrics()
 
@@ -64,11 +66,18 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
             }
             sender ! ""
 
+        case Started =>
+            Model.startedCounter.inc()
+
+        case Failed =>
+            Model.failedCounter.inc()
+
         case Latency(time) =>
             Model.requestLatency.update(time, TimeUnit.MILLISECONDS)
 
         case GetMetrics =>
-            sender ! Metrics(Model.requestLatency, 0, 0)
+            sender ! Metrics(Model.requestLatency,
+                Model.startedCounter, Model.failedCounter)
     }
 }
 
@@ -78,6 +87,8 @@ object Model extends Instrumented {
 
     private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Model.Pipelines]
 
+    private val startedCounter = metrics.counter("startedCounter")
+    private val failedCounter = metrics.counter("failedCounter")
     private val requestLatency = metrics.timer("requestLatency")
 
     def getAllServices = {

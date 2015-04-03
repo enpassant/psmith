@@ -57,6 +57,7 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
             } else {
                 val (microService, pipeline) = microServices(Random.nextInt(microServices.size))
                 val start = System.currentTimeMillis
+                model ! Started
                 def serviceFn = {
                     val updatedUri = request.uri
                         .withHost(microService.host)
@@ -90,6 +91,7 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
                         selfActor ! ((start, sndr, response))
                     case Failure(exn) =>
                         model ! DeleteService(microService.uuid)
+                        model ! Failed
                         log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
                         selfActor.tell(request, sndr)
                 }

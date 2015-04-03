@@ -1,6 +1,6 @@
 package core
 
-import nl.grons.metrics.scala.Timer
+import nl.grons.metrics.scala.{Counter, Timer}
 import java.util.UUID
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.{read, writePretty}
@@ -17,8 +17,12 @@ case class Metrics(
     max: Long,
     mean: Double,
     stdDev: Double,
-    oneMinuteRate: Double,
-    load: Double)
+    oneMinuteRate: Double)
+{
+    def minLoad = min / 1000000 * (startedCount - successCount - failedCount)
+    def meanLoad = mean / 1000000 * (startedCount - successCount - failedCount)
+    def maxLoad = max / 1000000 * (startedCount - successCount - failedCount)
+}
 
 trait MetricsFormats extends BaseFormats {
     lazy val `application/vnd.enpassant.metrics+json` =
@@ -34,15 +38,14 @@ trait MetricsFormats extends BaseFormats {
 }
 
 object Metrics {
-    def apply(timer: Timer, startedCount: Long, failedCount: Long): Metrics = Metrics(
-        startedCount,
+    def apply(timer: Timer, startedCounter: Counter, failedCounter: Counter): Metrics = Metrics(
+        startedCounter.count,
         timer.count,
-        failedCount,
+        failedCounter.count,
         timer.min / 1000000,
         timer.max / 1000000,
         timer.mean / 1000000,
         timer.stdDev / 1000000,
-        timer.oneMinuteRate,
-        timer.max / 1000000 * (startedCount - timer.count - failedCount))
+        timer.oneMinuteRate)
 }
 // vim: set ts=4 sw=4 et:
