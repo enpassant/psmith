@@ -21,9 +21,9 @@ case class PutService(serviceId: String, service: MicroService)
 case class DeleteService(serviceId: String)
 case class SetServices(services: List[MicroService])
 
-case class Started()
-case class Failed()
-case class Latency(time: Long)
+case class Started(service: Option[MicroService])
+case class Failed(service: Option[MicroService])
+case class Latency(time: Long, service: Option[MicroService])
 case class GetMetrics()
 
 class Model(val mode: Option[String]) extends Actor with ActorLogging {
@@ -66,13 +66,13 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
             }
             sender ! ""
 
-        case Started =>
+        case Started(service) =>
             Model.startedCounter.inc()
 
-        case Failed =>
+        case Failed(service) =>
             Model.failedCounter.inc()
 
-        case Latency(time) =>
+        case Latency(time, service) =>
             Model.requestLatency.update(time, TimeUnit.MILLISECONDS)
 
         case GetMetrics =>
