@@ -50,14 +50,14 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
             val microServicePath = request.uri.path.tail.tail
             val microServices =
                 Model.findServices(microServicePath.tail.head.toString, runningMode)
-            if (microServices.isEmpty) {
+            if (microServices.list.isEmpty) {
                 model ! Started(None)
                 model ! Failed(None)
                 sndr ! HttpResponse(
                     status = StatusCodes.BadGateway,
                     entity = HttpEntity(s"No service for path ${request.uri.path}"))
             } else {
-                val (microService, pipeline) = microServices(Random.nextInt(microServices.size))
+                val (microService, pipeline) = microServices.list(Random.nextInt(microServices.list.size))
                 model ! Started(Some(microService))
                 val start = System.currentTimeMillis
                 def serviceFn = {
@@ -68,7 +68,7 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
                     val updatedRequest = request.copy(uri = updatedUri,
                         headers = stripHeaders(request.headers))
 
-                    pipeline.flatMap(_(updatedRequest))
+                    pipeline.value.flatMap(_(updatedRequest))
                 }
                 val futureResponse = if (readMethods contains request.method) {
                     val cacheKey = microServicePath + "_" + runningMode.toString
