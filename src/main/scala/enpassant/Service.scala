@@ -1,6 +1,6 @@
 package enpassant
 
-import core.{Config, Metrics, MetricsFormats, MicroService, ServiceFormats}
+import core.{Config, Metrics, MetricsFormats, MetricsStat, MicroService, ServiceFormats}
 
 import akka.actor.{ ActorLogging, ActorRef }
 import akka.io.IO
@@ -26,8 +26,8 @@ class Service(val config: Config, val model: ActorRef) extends HttpServiceActor
                 (pathEnd compose get) {
                     respondWithJson { ctx =>
                         (model ? GetMetrics) map {
-                            case metrics: Metrics => ctx.complete(metrics)
-//                            case _ => ctx.reject()
+                            case metrics: MetricsStat => ctx.complete(metrics)
+                            case _ => ctx.reject()
                         }
                     }
                 }

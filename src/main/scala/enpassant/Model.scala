@@ -1,6 +1,6 @@
 package enpassant
 
-import core.{Instrumented, Metrics, MicroService}
+import core.{Instrumented, Metrics, MetricsStatItem, MetricsStatMap, MicroService}
 
 import akka.actor.{ActorLogging, Actor, ActorRef}
 import akka.io.IO
@@ -51,9 +51,10 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
                 ) yield sendReceive(connector)
                 val key = Model.name(microService.path, microService.runningMode)
                 if (Model.services contains key) {
-                    Model.services(key) = Pipelines((microService, Pipeline(pipeline)) :: Model.services(key).list)
+                    Model.services(key) = Pipelines(key, (microService, Pipeline(microService.uuid, pipeline)) ::
+                        Model.services(key).list)
                 } else {
-                    Model.services(key) = Pipelines(List((microService, Pipeline(pipeline))))
+                    Model.services(key) = Pipelines(key, List((microService, Pipeline(microService.uuid, pipeline))))
                 }
             }
             sender ! microService
@@ -72,7 +73,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
                 case Some(ms) =>
                     val pipelines = Model.findServices(ms.path, ms.runningMode)
                     pipelines.startedCounter.inc()
-                    val pipeline = pipelines.list.find(_._1.uuid == service.get.uuid)
+                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
                     pipeline map { _._2.startedCounter.inc() }
                 case _ =>
             }
@@ -83,7 +84,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
                 case Some(ms) =>
                     val pipelines = Model.findServices(ms.path, ms.runningMode)
                     pipelines.failedCounter.inc()
-                    val pipeline = pipelines.list.find(_._1.uuid == service.get.uuid)
+                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
                     pipeline map { _._2.failedCounter.inc() }
                 case _ =>
             }
@@ -94,27 +95,26 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
                 case Some(ms) =>
                     val pipelines = Model.findServices(ms.path, ms.runningMode)
                     pipelines.requestLatency.update(time, TimeUnit.MILLISECONDS)
-                    val pipeline = pipelines.list.find(_._1.uuid == service.get.uuid)
+                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
                     pipeline map { _._2.requestLatency.update(time, TimeUnit.MILLISECONDS) }
                 case _ =>
             }
 
         case GetMetrics =>
-            sender ! Metrics(Model.requestLatency,
-                Model.startedCounter, Model.failedCounter)
+            sender ! Model.getAllMetrics
     }
 }
 
-case class Pipeline(value: Future[SendReceive]) extends Instrumented {
-    val startedCounter = metrics.counter("startedCounter")
-    val failedCounter = metrics.counter("failedCounter")
-    val requestLatency = metrics.timer("requestLatency")
+case class Pipeline(id: String, value: Future[SendReceive]) extends Instrumented {
+    val startedCounter = metrics.counter("startedCounter." + id)
+    val failedCounter = metrics.counter("failedCounter." + id)
+    val requestLatency = metrics.timer("requestLatency." + id)
 }
 
-case class Pipelines(list: List[(MicroService, Pipeline)]) extends Instrumented {
-    val startedCounter = metrics.counter("startedCounter")
-    val failedCounter = metrics.counter("failedCounter")
-    val requestLatency = metrics.timer("requestLatency")
+case class Pipelines(id: String, list: List[(MicroService, Pipeline)]) extends Instrumented {
+    val startedCounter = metrics.counter("startedCounter." + id)
+    val failedCounter = metrics.counter("failedCounter." + id)
+    val requestLatency = metrics.timer("requestLatency." + id)
 }
 
 object Model extends Instrumented {
@@ -125,6 +125,22 @@ object Model extends Instrumented {
     private val startedCounter = metrics.counter("startedCounter")
     private val failedCounter = metrics.counter("failedCounter")
     private val requestLatency = metrics.timer("requestLatency")
+
+    def getAllMetrics: MetricsStatMap = {
+        MetricsStatMap(Map(("system" ->
+            MetricsStatItem(Metrics(requestLatency, startedCounter, failedCounter)))) ++
+                services.map {
+                    kv: (String, Pipelines) =>
+                        val (k, v) = kv
+                        (k -> MetricsStatMap(Map(("all" ->
+                            MetricsStatItem(Metrics(v.requestLatency, v.startedCounter, v.failedCounter)))) ++
+                            v.list.map {
+                                case (ms, p) => (ms.uuid,
+                                    MetricsStatItem(Metrics(p.requestLatency, p.startedCounter, p.failedCounter)))
+                            }.toMap
+                        ))
+                })
+    }
 
     def getAllServices = {
         services.values.flatMap(_.list.map(_._1))
@@ -142,7 +158,7 @@ object Model extends Instrumented {
         } else if (runningMode != None && services.contains(keyNone)) {
             services(keyNone)
         } else {
-            Pipelines(List())
+            Pipelines("", List())
         }
     }
 
@@ -159,7 +175,7 @@ object Model extends Instrumented {
                     (service.host == s.host && service.port == s.port)
             }
             if (pipelines.isEmpty) services.remove(key)
-            else services(key) = Pipelines(pipelines)
+            else services(key) = Pipelines(key, pipelines)
         }
     }
 }
