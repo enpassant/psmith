@@ -1,6 +1,6 @@
 package enpassant
 
-import core.{Instrumented, Metrics, MicroService}
+import core.{Instrumented, Metrics, MetricsStatItem, MetricsStatMap, MicroService}
 
 import akka.actor.{ActorLogging, Actor, ActorRef}
 import akka.io.IO
@@ -21,9 +21,9 @@ case class PutService(serviceId: String, service: MicroService)
 case class DeleteService(serviceId: String)
 case class SetServices(services: List[MicroService])
 
-case class Started()
-case class Failed()
-case class Latency(time: Long)
+case class Started(service: Option[MicroService])
+case class Failed(service: Option[MicroService])
+case class Latency(time: Long, service: Option[MicroService])
 case class GetMetrics()
 
 class Model(val mode: Option[String]) extends Actor with ActorLogging {
@@ -31,7 +31,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
 
     def receive = {
         case GetServices =>
-            sender ! Model.services.values.flatMap(_.map(_._1))
+            sender ! Model.services.values.flatMap(_.list.map(_._1))
 
         case GetService(serviceId) =>
             sender ! Model.findServiceById(serviceId)
@@ -51,9 +51,10 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
                 ) yield sendReceive(connector)
                 val key = Model.name(microService.path, microService.runningMode)
                 if (Model.services contains key) {
-                    Model.services(key) = (microService, pipeline) :: Model.services(key)
+                    Model.services(key) = Pipelines(key, (microService, Pipeline(microService.uuid, pipeline)) ::
+                        Model.services(key).list)
                 } else {
-                    Model.services(key) = List((microService, pipeline))
+                    Model.services(key) = Pipelines(key, List((microService, Pipeline(microService.uuid, pipeline))))
                 }
             }
             sender ! microService
@@ -66,40 +67,90 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
             }
             sender ! ""
 
-        case Started =>
+        case Started(service) =>
             Model.startedCounter.inc()
+            service match {
+                case Some(ms) =>
+                    val pipelines = Model.findServices(ms.path, ms.runningMode)
+                    pipelines.startedCounter.inc()
+                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
+                    pipeline map { _._2.startedCounter.inc() }
+                case _ =>
+            }
 
-        case Failed =>
+        case Failed(service) =>
             Model.failedCounter.inc()
+            service match {
+                case Some(ms) =>
+                    val pipelines = Model.findServices(ms.path, ms.runningMode)
+                    pipelines.failedCounter.inc()
+                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
+                    pipeline map { _._2.failedCounter.inc() }
+                case _ =>
+            }
 
-        case Latency(time) =>
+        case Latency(time, service) =>
             Model.requestLatency.update(time, TimeUnit.MILLISECONDS)
+            service match {
+                case Some(ms) =>
+                    val pipelines = Model.findServices(ms.path, ms.runningMode)
+                    pipelines.requestLatency.update(time, TimeUnit.MILLISECONDS)
+                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
+                    pipeline map { _._2.requestLatency.update(time, TimeUnit.MILLISECONDS) }
+                case _ =>
+            }
 
         case GetMetrics =>
-            sender ! Metrics(Model.requestLatency,
-                Model.startedCounter, Model.failedCounter)
+            sender ! Model.getAllMetrics
     }
 }
 
+case class Pipeline(id: String, value: Future[SendReceive]) extends Instrumented {
+    val startedCounter = metrics.counter("startedCounter." + id)
+    val failedCounter = metrics.counter("failedCounter." + id)
+    val requestLatency = metrics.timer("requestLatency." + id)
+}
+
+case class Pipelines(id: String, list: List[(MicroService, Pipeline)]) extends Instrumented {
+    val startedCounter = metrics.counter("startedCounter." + id)
+    val failedCounter = metrics.counter("failedCounter." + id)
+    val requestLatency = metrics.timer("requestLatency." + id)
+}
+
 object Model extends Instrumented {
-    type Pipelines = List[(MicroService, Future[SendReceive])]
     type Collection = scala.collection.mutable.Map[String, Pipelines]
 
-    private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Model.Pipelines]
+    private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
 
     private val startedCounter = metrics.counter("startedCounter")
     private val failedCounter = metrics.counter("failedCounter")
     private val requestLatency = metrics.timer("requestLatency")
 
+    def getAllMetrics: MetricsStatMap = {
+        MetricsStatMap(Map(("system" ->
+            MetricsStatItem(Metrics(requestLatency, startedCounter, failedCounter)))) ++
+                services.map {
+                    kv: (String, Pipelines) =>
+                        val (k, v) = kv
+                        (k -> MetricsStatMap(Map(("all" ->
+                            MetricsStatItem(Metrics(v.requestLatency, v.startedCounter, v.failedCounter)))) ++
+                            v.list.map {
+                                case (ms, p) => (ms.uuid,
+                                    MetricsStatItem(Metrics(p.requestLatency, p.startedCounter, p.failedCounter)))
+                            }.toMap
+                        ))
+                })
+    }
+
     def getAllServices = {
-        services.values.flatMap(_.map(_._1))
+        services.values.flatMap(_.list.map(_._1))
     }
 
     def findServiceById(serviceId: String) = {
         getAllServices.find(_.uuid == serviceId)
     }
 
-    def findServices(path: String, runningMode: Option[String]): Model.Pipelines = {
+    def findServices(path: String, runningMode: Option[String]): Pipelines = {
         val key = name(path, runningMode)
         val keyNone = name(path, None)
         if (services contains key) {
@@ -107,7 +158,7 @@ object Model extends Instrumented {
         } else if (runningMode != None && services.contains(keyNone)) {
             services(keyNone)
         } else {
-            List()
+            Pipelines("", List())
         }
     }
 
@@ -119,12 +170,12 @@ object Model extends Instrumented {
     private def deleteServices(service: MicroService) = {
         val key = name(service.path, service.runningMode)
         if (services contains key) {
-            val pipelines = services(key) filterNot {
+            val pipelines = services(key).list filterNot {
                 case (s, p) => (service.uuid == s.uuid) ||
                     (service.host == s.host && service.port == s.port)
             }
             if (pipelines.isEmpty) services.remove(key)
-            else services(key) = pipelines
+            else services(key) = Pipelines(key, pipelines)
         }
     }
 }

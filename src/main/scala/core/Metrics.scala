@@ -24,9 +24,16 @@ case class Metrics(
     def maxLoad = max / 1000000 * (startedCount - successCount - failedCount)
 }
 
+sealed trait MetricsStat
+case class MetricsStatItem(metrics: Metrics) extends MetricsStat
+case class MetricsStatMap(map: Map[String, MetricsStat]) extends MetricsStat
+
 trait MetricsFormats extends BaseFormats {
     lazy val `application/vnd.enpassant.metrics+json` =
         MediaTypes.register(MediaType.custom("application/vnd.enpassant.metrics+json"))
+
+    lazy val `application/vnd.enpassant.metricstat+json` =
+        MediaTypes.register(MediaType.custom("application/vnd.enpassant.metricstat+json"))
 
     implicit val MetricsUnmarshaller = Unmarshaller.oneOf(
         unmarshal[Metrics](`application/vnd.enpassant.metrics+json`),
@@ -34,6 +41,14 @@ trait MetricsFormats extends BaseFormats {
 
     implicit val MetricsMarshaller = marshal[Metrics](
         `application/vnd.enpassant.metrics+json`,
+        MediaTypes.`application/json`)
+
+    implicit val MetricsStatUnmarshaller = Unmarshaller.oneOf(
+        unmarshal[MetricsStat](`application/vnd.enpassant.metricstat+json`),
+        unmarshal[MetricsStat](MediaTypes.`application/json`))
+
+    implicit val MetricsStatMarshaller = marshal[MetricsStat](
+        `application/vnd.enpassant.metricstat+json`,
         MediaTypes.`application/json`)
 }
 

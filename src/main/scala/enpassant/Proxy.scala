@@ -27,8 +27,8 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
     private val pipeline = sendReceive
     val managedHeaders = List("Host", "Server", "Date", "Content-Type",
         "Content-Length", "Transfer-Encoding")
-//    val readMethods = List(GET, HEAD, OPTIONS)
-    val readMethods = List()
+    val readMethods = List(GET, HEAD, OPTIONS)
+    //val readMethods = List()
 
     val cache: Cache[HttpResponse] = LruCache(timeToLive = 60 seconds, timeToIdle = 10 seconds)
 
@@ -46,18 +46,19 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
             val selfActor = self
             val sndr = sender
             tickActor map { _ ! Restart }
-            model ! Started
             val runningMode = request.cookies.find(_.name == "runningMode").map(_.content)
             val microServicePath = request.uri.path.tail.tail
             val microServices =
                 Model.findServices(microServicePath.tail.head.toString, runningMode)
-            if (microServices.isEmpty) {
-                model ! Failed
+            if (microServices.list.isEmpty) {
+                model ! Started(None)
+                model ! Failed(None)
                 sndr ! HttpResponse(
                     status = StatusCodes.BadGateway,
                     entity = HttpEntity(s"No service for path ${request.uri.path}"))
             } else {
-                val (microService, pipeline) = microServices(Random.nextInt(microServices.size))
+                val (microService, pipeline) = microServices.list(Random.nextInt(microServices.list.size))
+                model ! Started(Some(microService))
                 val start = System.currentTimeMillis
                 def serviceFn = {
                     val updatedUri = request.uri
@@ -67,7 +68,7 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
                     val updatedRequest = request.copy(uri = updatedUri,
                         headers = stripHeaders(request.headers))
 
-                    pipeline.flatMap(_(updatedRequest))
+                    pipeline.value.flatMap(_(updatedRequest))
                 }
                 val futureResponse = if (readMethods contains request.method) {
                     val cacheKey = microServicePath + "_" + runningMode.toString
@@ -89,18 +90,18 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
 //                        val end = System.currentTimeMillis
 //                        requestLatency.update(end - start, TimeUnit.MILLISECONDS)
 //                        sndr ! response.copy(headers = stripHeaders(response.headers))
-                        selfActor ! ((start, sndr, response))
+                        selfActor ! ((start, sndr, response, microService))
                     case Failure(exn) =>
                         model ! DeleteService(microService.uuid)
-                        model ! Failed
+                        model ! Failed(Some(microService))
                         log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
                         selfActor.tell(request, sndr)
                 }
             }
 
-        case (start: Long, sndr: ActorRef, response: HttpResponse) =>
+        case (start: Long, sndr: ActorRef, response: HttpResponse, microService: MicroService) =>
             val end = System.currentTimeMillis
-            model ! Latency(end - start)
+            model ! Latency(end - start, Some(microService))
             sndr ! response.copy(headers = stripHeaders(response.headers))
 
         case c: Tcp.ConnectionClosed =>
