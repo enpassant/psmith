@@ -14,7 +14,7 @@ import scala.concurrent.duration._
 case class Tick()
 case class Restart()
 
-//class TickActor(val config: Config) extends Actor with ActorLogging  with ServiceFormats {
+class TickActor(val config: Config) extends Actor with ActorLogging  with ServiceFormats {
     //implicit val system: ActorSystem = ActorSystem("psmith")
     //implicit val timeout: Timeout = Timeout(15.seconds)
     //import scala.concurrent.ExecutionContext.Implicits.global
@@ -36,10 +36,10 @@ case class Restart()
         //context.become(process(c))
     //}
 
-    //def receive = {
-        //case Tick =>
+    def receive = {
+        case Tick =>
             //register
-    //}
+    }
 
     //def process(cancellable: Cancellable): Receive = {
         //case Tick =>
@@ -49,5 +49,5 @@ case class Restart()
             //cancellable.cancel
             //schedule
     //}
-//}
+}
 // vim: set ts=4 sw=4 et:

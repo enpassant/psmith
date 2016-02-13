@@ -8,14 +8,14 @@ import org.json4s.jackson.Serialization.{ read, writePretty }
 //import spray.httpx.unmarshalling._
 //import spray.http.{ ContentType, ContentTypeRange, HttpEntity, MediaType, MediaTypes }
 
-//case class MicroService(
-    //uuid: String = UUID.randomUUID.toString,
-    //path: String,
-    //host: String,
-    //port: Int = 9000,
-    //runningMode: Option[String] = None)
+case class MicroService(
+    uuid: String = UUID.randomUUID.toString,
+    path: String,
+    host: String,
+    port: Int = 9000,
+    runningMode: Option[String] = None)
 
-//trait ServiceFormats extends BaseFormats {
+trait ServiceFormats extends BaseFormats {
     //lazy val `application/vnd.enpassant.service+json` =
         //MediaTypes.register(MediaType.custom("application/vnd.enpassant.service+json"))
 
@@ -29,5 +29,5 @@ import org.json4s.jackson.Serialization.{ read, writePretty }
 
     //implicit val SeqServiceMarshaller = marshal[Seq[MicroService]](
         //MediaTypes.`application/json`)
-//}
+}
 // vim: set ts=4 sw=4 et:

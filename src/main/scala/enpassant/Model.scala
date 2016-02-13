@@ -24,12 +24,12 @@ import scala.concurrent.Future
 //case class Started(service: Option[MicroService])
 //case class Failed(service: Option[MicroService])
 //case class Latency(time: Long, service: Option[MicroService])
-//case class GetMetrics()
+case class GetMetrics()
 
-//class Model(val mode: Option[String]) extends Actor with ActorLogging {
+class Model(val mode: Option[String]) extends Actor with ActorLogging {
     //import context.dispatcher
 
-    //def receive = {
+    def receive = {
         //case GetServices =>
             //sender ! Model.services.values.flatMap(_.list.map(_._1))
 
@@ -100,10 +100,10 @@ import scala.concurrent.Future
                 //case _ =>
             //}
 
-        //case GetMetrics =>
+        case GetMetrics =>
             //sender ! Model.getAllMetrics
-    //}
-//}
+    }
+}
 
 //case class Pipeline(id: String, value: Future[SendReceive]) extends Instrumented {
     //val startedCounter = metrics.counter("startedCounter." + id)

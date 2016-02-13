@@ -1,8 +1,16 @@
 package enpassant
 
-//import core.{Config, Instrumented, MicroService, Restart, TickActor}
+import core.{Config, Instrumented, MicroService, Restart, TickActor}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props, Terminated}
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.HttpHeader
+import akka.http.scaladsl.model.Uri.Path
+import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.Directives._
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Sink, Source}
 import akka.io.IO
 import akka.io.Tcp
 import akka.pattern.{ask, pipe}
@@ -18,9 +26,9 @@ import scala.util.{Success, Failure, Random}
 //import spray.http._
 //import spray.client.pipelining._
 
-//class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[ActorRef])
-    //extends Actor with ActorLogging
-//{
+class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[ActorRef])
+    extends Actor with ActorLogging
+{
     //import context.dispatcher
     //implicit val timeout = Timeout(3.seconds)
     //implicit val system = context.system
@@ -37,7 +45,38 @@ import scala.util.{Success, Failure, Random}
     //private def stripHeaders(headers: List[HttpHeader]):
         //List[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
 
-    //def receive = {
+    implicit val actorSystem = context.system
+    implicit val materializer = ActorMaterializer()
+    implicit val ec = actorSystem.dispatcher
+
+      val managedHeaders = List("Host", "Server", "Date", "Content-Type",
+          "Content-Length", "Transfer-Encoding", "Timeout-Access")
+
+      private def stripHeaders(headers: scala.collection.immutable.Seq[HttpHeader]):
+          scala.collection.immutable.Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
+
+      val proxy = Route { context =>
+        val request = context.request
+        val updatedUri = request.uri
+          .withHost(config.host)
+          .withPort(config.port)
+          .withPath(Path./)
+        val updatedRequest = request.copy(uri = updatedUri,
+          headers = stripHeaders(request.headers))
+          //println("Opening connection to " + request.uri.authority.host.address)
+          println("Opening connection to " + config.host + ":" + config.port)
+        val flow = Http(actorSystem).outgoingConnection(config.host, config.port)
+        val handler = Source.single(updatedRequest)
+          //.map(r => r.withHeaders(RawHeader("x-authenticated", "someone")))
+          .via(flow)
+          .runWith(Sink.head)
+          .flatMap(context.complete(_))
+        handler
+      }
+
+      val binding = Http(actorSystem).bindAndHandle(handler = proxy, interface = "localhost", port = 9000)
+
+    def receive = {
         //case Tcp.Connected(remote, _) =>
             //log.debug(s"Connected($remote)")
             //sender ! Tcp.Register(self)
@@ -107,9 +146,9 @@ import scala.util.{Success, Failure, Random}
         //case c: Tcp.ConnectionClosed =>
             //log.debug("Connection for remote address closed ({})", c)
 
-        //case msg =>
-            //log.info("ConnectionHandler: {}", msg)
+        case msg =>
+            log.info("ConnectionHandler: {}", msg)
 
-    //}
-//}
+    }
+}
 // vim: set ts=4 sw=4 et:
