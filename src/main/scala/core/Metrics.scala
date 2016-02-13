@@ -2,12 +2,9 @@ package core
 
 import nl.grons.metrics.scala.{Counter, Timer}
 import java.util.UUID
-import org.json4s.{DefaultFormats, Formats}
-import org.json4s.jackson.Serialization.{read, writePretty}
-//import spray.httpx.Json4sSupport
-//import spray.httpx.marshalling._
-//import spray.httpx.unmarshalling._
-//import spray.http.{ContentType, ContentTypeRange, HttpEntity, MediaType, MediaTypes}
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.marshalling._
+import akka.http.scaladsl.unmarshalling._
 
 case class Metrics(
     startedCount: Long,
@@ -29,27 +26,35 @@ case class MetricsStatItem(metrics: Metrics) extends MetricsStat
 case class MetricsStatMap(map: Map[String, MetricsStat]) extends MetricsStat
 
 trait MetricsFormats extends BaseFormats {
-    //lazy val `application/vnd.enpassant.metrics+json` =
-        //MediaTypes.register(MediaType.custom("application/vnd.enpassant.metrics+json"))
+    lazy val `application/vnd.enpassant.metrics+json`: MediaType.WithFixedCharset =
+        MediaType.customWithFixedCharset(
+            "application",
+            "vnd.enpassant.metrics+json",
+            HttpCharsets.`UTF-8`
+        )
 
-    //lazy val `application/vnd.enpassant.metricstat+json` =
-        //MediaTypes.register(MediaType.custom("application/vnd.enpassant.metricstat+json"))
+    lazy val `application/vnd.enpassant.metricstat+json`: MediaType.WithFixedCharset =
+        MediaType.customWithFixedCharset(
+            "application",
+            "vnd.enpassant.metricstat+json",
+            HttpCharsets.`UTF-8`
+        )
 
-    //implicit val MetricsUnmarshaller = Unmarshaller.oneOf(
-        //unmarshal[Metrics](`application/vnd.enpassant.metrics+json`),
-        //unmarshal[Metrics](MediaTypes.`application/json`))
+    implicit val MetricsUnmarshaller = Unmarshaller.firstOf(
+        unmarshaller[Metrics](`application/vnd.enpassant.metrics+json`),
+        unmarshaller[Metrics](MediaTypes.`application/json`))
 
-    //implicit val MetricsMarshaller = marshal[Metrics](
-        //`application/vnd.enpassant.metrics+json`,
-        //MediaTypes.`application/json`)
+    implicit val MetricsMarshaller = Marshaller.oneOf(
+        marshaller[Metrics](`application/vnd.enpassant.metrics+json`),
+        marshaller[Metrics](MediaTypes.`application/json`))
 
-    //implicit val MetricsStatUnmarshaller = Unmarshaller.oneOf(
-        //unmarshal[MetricsStat](`application/vnd.enpassant.metricstat+json`),
-        //unmarshal[MetricsStat](MediaTypes.`application/json`))
+    implicit val MetricsStatUnmarshaller = Unmarshaller.firstOf(
+        unmarshaller[MetricsStat](`application/vnd.enpassant.metricstat+json`),
+        unmarshaller[MetricsStat](MediaTypes.`application/json`))
 
-    //implicit val MetricsStatMarshaller = marshal[MetricsStat](
-        //`application/vnd.enpassant.metricstat+json`,
-        //MediaTypes.`application/json`)
+    implicit val MetricsStatMarshaller = Marshaller.oneOf(
+        marshaller[MetricsStat](`application/vnd.enpassant.metricstat+json`),
+        marshaller[MetricsStat](MediaTypes.`application/json`))
 }
 
 object Metrics {

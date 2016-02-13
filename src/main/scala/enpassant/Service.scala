@@ -7,7 +7,6 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import akka.pattern.ask
-import de.heikoseeberger.akkahttpjson4s._
 
 class Service(val config: Config)
     extends Actor
@@ -17,8 +16,6 @@ class Service(val config: Config)
     with MetricsFormats
     with Dev
 {
-    import Json4sSupport._
-
     import context.dispatcher
     implicit val system = context.system
     implicit val materializer = ActorMaterializer()
