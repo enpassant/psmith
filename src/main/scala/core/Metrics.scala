@@ -25,8 +25,8 @@ case class Metrics(
 }
 
 sealed trait MetricsStat
-//case class MetricsStatItem(metrics: Metrics) extends MetricsStat
-//case class MetricsStatMap(map: Map[String, MetricsStat]) extends MetricsStat
+case class MetricsStatItem(metrics: Metrics) extends MetricsStat
+case class MetricsStatMap(map: Map[String, MetricsStat]) extends MetricsStat
 
 trait MetricsFormats extends BaseFormats {
     //lazy val `application/vnd.enpassant.metrics+json` =

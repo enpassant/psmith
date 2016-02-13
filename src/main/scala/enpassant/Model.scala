@@ -1,6 +1,6 @@
 package enpassant
 
-//import core.{Instrumented, Metrics, MetricsStatItem, MetricsStatMap, MicroService}
+import core.{Instrumented, Metrics, MetricsStatItem, MetricsStatMap, MicroService}
 
 import akka.actor.{ActorLogging, Actor, ActorRef}
 import akka.io.IO
@@ -101,6 +101,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
             //}
 
         case GetMetrics =>
+            sender ! MetricsStatMap(Map())
             //sender ! Model.getAllMetrics
     }
 }

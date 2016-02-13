@@ -8,20 +8,24 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import akka.pattern.ask
-//import spray.can.Http
-//import spray.routing.{ HttpServiceActor, Route, ValidationRejection }
+import de.heikoseeberger.akkahttpjson4s._
 
 class Service(val config: Config, val model: ActorRef)
     extends Actor
     with ServiceDirectives
     with ActorLogging
-    //with ServiceFormats
-    //with MetricsFormats
+    with ServiceFormats
+    with MetricsFormats
     with Dev
 {
+    import Json4sSupport._
+
     import context.dispatcher
     implicit val system = context.system
     implicit val materializer = ActorMaterializer()
+
+    //implicit val timeout = Timeout(10.seconds)
+    //import scala.concurrent.ExecutionContext.Implicits.global
 
     val bindingFuture = Http().bindAndHandle(route, config.serviceHost, config.servicePort)
 
@@ -31,17 +35,18 @@ class Service(val config: Config, val model: ActorRef)
         debug {
             path("") {
                 serviceLinks { headComplete }
+            } ~
+            pathPrefix("metrics") {
+                pathEnd {
+                    get {
+                        ctx =>
+                            (model ? GetMetrics) flatMap {
+                                case metrics: MetricsStat => ctx.complete(metrics)
+                                case _ => ctx.reject()
+                        }
+                    }
+                }
             }
-            //~ pathPrefix("metrics") {
-                //(pathEnd compose get) {
-                    //respondWithJson { ctx =>
-                        //(model ? GetMetrics) map {
-                            //case metrics: MetricsStat => ctx.complete(metrics)
-                            //case _ => ctx.reject()
-                        //}
-                    //}
-                //}
-            //} ~
             //pathPrefix("services") {
                 //(pathEnd compose get) {
                     //respondWithJson { ctx =>

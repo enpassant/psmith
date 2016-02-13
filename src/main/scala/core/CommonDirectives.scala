@@ -19,8 +19,8 @@ trait CommonDirectives
 {
     //val model: ActorRef
 
-    //implicit val timeout = Timeout(10.seconds)
-    //import scala.concurrent.ExecutionContext.Implicits.global
+    implicit val timeout = Timeout(10.seconds)
+    import scala.concurrent.ExecutionContext.Implicits.global
 
     //def respondWithJson =
         //respondWithMediaType(MediaTypes.`application/json`)
@@ -35,8 +35,8 @@ trait CommonDirectives
     def jsonLink(uri: String, rel: String, methods: HttpMethod*) = {
         LinkValue(Uri(uri),
             LinkParams.rel(rel),
-            LinkParams.`type`(MediaType.customMultipart("application/json",
-                Map("method" -> methods.mkString(" ")))))
+            LinkParams.`type`(MediaType.customBinary("application", "json",
+                MediaType.Compressible, Nil, Map("method" -> methods.mkString(" ")))))
     }
 
     def respondWithLinks(links: LinkValue*) = respondWithHeader(Link(links : _*))
