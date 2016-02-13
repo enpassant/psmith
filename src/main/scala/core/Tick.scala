@@ -50,4 +50,9 @@ class TickActor(val config: Config) extends Actor with ActorLogging  with Servic
             //schedule
     //}
 }
+
+object TickActor {
+    def props(config: Config) = Props(new TickActor(config))
+    def name = "tick"
+}
 // vim: set ts=4 sw=4 et:

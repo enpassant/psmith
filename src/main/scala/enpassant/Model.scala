@@ -2,7 +2,7 @@ package enpassant
 
 import core.{Instrumented, Metrics, MetricsStatItem, MetricsStatMap, MicroService}
 
-import akka.actor.{ActorLogging, Actor, ActorRef}
+import akka.actor.{ActorLogging, Actor, ActorRef, Props}
 import akka.io.IO
 import akka.pattern.ask
 import akka.util.Timeout
@@ -118,7 +118,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
     //val requestLatency = metrics.timer("requestLatency." + id)
 //}
 
-//object Model extends Instrumented {
+object Model extends Instrumented {
     //type Collection = scala.collection.mutable.Map[String, Pipelines]
 
     //private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
@@ -126,6 +126,9 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
     //private val startedCounter = metrics.counter("startedCounter")
     //private val failedCounter = metrics.counter("failedCounter")
     //private val requestLatency = metrics.timer("requestLatency")
+
+    def props(mode: Option[String]) = Props(new Model(mode))
+    def name = "model"
 
     //def getAllMetrics: MetricsStatMap = {
         //MetricsStatMap(Map(("system" ->
@@ -179,5 +182,5 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
             //else services(key) = Pipelines(key, pipelines)
         //}
     //}
-//}
+}
 // vim: set ts=4 sw=4 et:

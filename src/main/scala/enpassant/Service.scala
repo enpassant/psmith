@@ -2,14 +2,14 @@ package enpassant
 
 import core.{Config, Metrics, MetricsFormats, MetricsStat, MicroService, ServiceFormats}
 
-import akka.actor.{ Actor, ActorLogging, ActorRef }
+import akka.actor.{ Actor, ActorLogging, ActorRef, Props }
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import akka.pattern.ask
 import de.heikoseeberger.akkahttpjson4s._
 
-class Service(val config: Config, val model: ActorRef)
+class Service(val config: Config)
     extends Actor
     with ServiceDirectives
     with ActorLogging
@@ -22,6 +22,8 @@ class Service(val config: Config, val model: ActorRef)
     import context.dispatcher
     implicit val system = context.system
     implicit val materializer = ActorMaterializer()
+
+    val model = context.actorSelection("../" + Model.name)
 
     val bindingFuture = Http().bindAndHandle(route, config.serviceHost, config.servicePort)
 
@@ -84,5 +86,10 @@ class Service(val config: Config, val model: ActorRef)
     def receive = {
         case _ =>
     }
+}
+
+object Service {
+    def props(config: Config) = Props(new Service(config))
+    def name = "service"
 }
 // vim: set ts=4 sw=4 et:

@@ -8,13 +8,13 @@ class Supervisor(val config: Config) extends Actor with ActorLogging {
   import context.dispatcher
 
   val tickActor = config.router map {
-    _ => context.actorOf(Props(new TickActor(config)))
+    _ => context.actorOf(TickActor.props(config), TickActor.name)
   }
   tickActor.map(_ ! Tick)
 
-  val model = context.actorOf(Props(new Model(config.mode)))
-  val proxy = context.actorOf(Props(new Proxy(config, model, tickActor)))
-  val service = context.actorOf(Props(new Service(config, model)))
+  val model = context.actorOf(Model.props(config.mode), Model.name)
+  val proxy = context.actorOf(Proxy.props(config, tickActor.isDefined), Proxy.name)
+  val service = context.actorOf(Service.props(config), Service.name)
 
   def receive = {
     case _ =>

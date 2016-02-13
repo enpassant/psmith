@@ -27,7 +27,7 @@ import scala.util.{Success, Failure, Random}
 //import spray.http._
 //import spray.client.pipelining._
 
-class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[ActorRef])
+class Proxy(val config: Config, val routerDefined: Boolean)
     extends Actor with ActorLogging
 {
     import context.dispatcher
@@ -42,6 +42,10 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
 
     implicit val system = context.system
     implicit val materializer = ActorMaterializer()
+
+    val model = context.actorSelection("../" + Model.name)
+    val tickActor = if (routerDefined) Some(context.actorSelection("../" + TickActor.name))
+        else None
 
     private def stripHeaders(headers: Seq[HttpHeader]):
         Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
@@ -141,5 +145,11 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
             log.info("ConnectionHandler: {}", msg)
 
     }
+}
+
+object Proxy {
+    def props(config: Config, routerDefined: Boolean) =
+        Props(new Proxy(config, routerDefined))
+    def name = "proxy"
 }
 // vim: set ts=4 sw=4 et:
