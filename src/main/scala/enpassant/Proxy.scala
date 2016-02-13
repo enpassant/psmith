@@ -4,9 +4,8 @@ import core.{Config, Instrumented, MicroService, Restart, TickActor}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, PoisonPill, Props, Terminated}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.{HttpHeader, StatusCodes, Uri}
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
@@ -51,118 +50,58 @@ class Proxy(val config: Config, val routerDefined: Boolean)
         val request = context.request
         tickActor map { _ ! Restart }
         val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
-        val microServicePath = request.uri.path.tail.tail
-        val microServices =
-            Model.findServices(microServicePath.tail.head.toString, runningMode)
-        if (microServices.list.isEmpty) {
-            model ! Started(None)
-            model ! Failed(None)
-            //sndr ! HttpResponse(
-                //status = StatusCodes.BadGateway,
-                //entity = HttpEntity(s"No service for path ${request.uri.path}"))
-            context.reject()
+        if (request.uri.path.length < 4) {
+            context.complete((StatusCodes.BadGateway,
+                s"No service for path ${request.uri.path}"))
         } else {
-            val (microService, pipeline) = microServices.list(Random.nextInt(microServices.list.size))
-            model ! Started(Some(microService))
-            val start = System.currentTimeMillis
-            def serviceFn = {
-                val updatedUri = request.uri
-                    .withHost(microService.host)
-                    .withPort(microService.port)
-                    .withPath(microServicePath)
-                val updatedRequest = request.copy(uri = updatedUri,
-                    headers = stripHeaders(request.headers))
-
-                val handler = Source.single(updatedRequest)
-                  //.map(r => r.withHeaders(RawHeader("x-authenticated", "someone")))
-                  .via(pipeline.flow)
-                  .runWith(Sink.head)
-                  .flatMap(context.complete(_))
-                handler
-            }
-            val futureResponse = if (readMethods contains request.method) {
-                val cacheKey = microServicePath + "_" + runningMode.toString
-                //cache(cacheKey) {
-                    //serviceFn
-                //}
-                serviceFn
+            val microServicePath = request.uri.path.tail.tail
+            val microServices =
+                Model.findServices(microServicePath.tail.head.toString, runningMode)
+            if (microServices.list.isEmpty) {
+                model ! Started(None)
+                model ! Failed(None)
+                context.complete((StatusCodes.BadGateway,
+                    s"No service for path ${request.uri.path}"))
             } else {
-                @annotation.tailrec
-                def removeKey(prefix: String, path: Uri.Path): Unit = {
-                    val cacheKey = prefix + path.head + "_" + runningMode.toString
-                    //cache.remove(cacheKey)
-                    if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
+                val (microService, pipeline) = microServices.list(Random.nextInt(microServices.list.size))
+                model ! Started(Some(microService))
+                val start = System.currentTimeMillis
+                def serviceFn = {
+                    val updatedUri = request.uri
+                        .withHost(microService.host)
+                        .withPort(microService.port)
+                        .withPath(microServicePath)
+                    val updatedRequest = request.copy(uri = updatedUri,
+                        headers = stripHeaders(request.headers))
+
+                    val handler = Source.single(updatedRequest)
+                      //.map(r => r.withHeaders(RawHeader("x-authenticated", "someone")))
+                      .via(pipeline.flow)
+                      .runWith(Sink.head)
+                      .flatMap(context.complete(_))
+                    handler
                 }
-                removeKey("", microServicePath)
-                serviceFn
-            }
-            //futureResponse.onComplete {
-                //case Success(response) =>
-////                        val end = System.currentTimeMillis
-////                        requestLatency.update(end - start, TimeUnit.MILLISECONDS)
-////                        sndr ! response.copy(headers = stripHeaders(response.headers))
-                    //selfActor ! ((start, sndr, response, microService))
-                //case Failure(exn) =>
-                    //model ! DeleteService(microService.uuid)
-                    //model ! Failed(Some(microService))
-                    //log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
-                    //selfActor.tell(request, sndr)
-            //}
-            futureResponse
-        }
-      }
-
-      val binding = Http().bindAndHandle(handler = proxy, interface = "localhost", port = 9000)
-
-    def receive = {
-        //case request: HttpRequest =>
-            //val selfActor = self
-            //val sndr = sender
-            //tickActor map { _ ! Restart }
-            //val runningMode = request.cookies.find(_.name == "runningMode").map(_.content)
-            //val microServicePath = request.uri.path.tail.tail
-            //val microServices =
-                //Model.findServices(microServicePath.tail.head.toString, runningMode)
-            //if (microServices.list.isEmpty) {
-                //model ! Started(None)
-                //model ! Failed(None)
-                //sndr ! HttpResponse(
-                    //status = StatusCodes.BadGateway,
-                    //entity = HttpEntity(s"No service for path ${request.uri.path}"))
-            //} else {
-                //val (microService, pipeline) = microServices.list(Random.nextInt(microServices.list.size))
-                //model ! Started(Some(microService))
-                //val start = System.currentTimeMillis
-                //def serviceFn = {
-                    //val updatedUri = request.uri
-                        //.withHost(microService.host)
-                        //.withPort(microService.port)
-                        //.withPath(microServicePath)
-                    //val updatedRequest = request.copy(uri = updatedUri,
-                        //headers = stripHeaders(request.headers))
-
-                    //pipeline.value.flatMap(_(updatedRequest))
-                //}
-                //val futureResponse = if (readMethods contains request.method) {
-                    //val cacheKey = microServicePath + "_" + runningMode.toString
+                val futureResponse = if (readMethods contains request.method) {
+                    val cacheKey = microServicePath + "_" + runningMode.toString
                     //cache(cacheKey) {
                         //serviceFn
                     //}
-                //} else {
-                    //@annotation.tailrec
-                    //def removeKey(prefix: String, path: Uri.Path): Unit = {
-                        //val cacheKey = prefix + path.head + "_" + runningMode.toString
+                    serviceFn
+                } else {
+                    @annotation.tailrec
+                    def removeKey(prefix: String, path: Uri.Path): Unit = {
+                        val cacheKey = prefix + path.head + "_" + runningMode.toString
                         //cache.remove(cacheKey)
-                        //if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
-                    //}
-                    //removeKey("", microServicePath)
-                    //serviceFn
-                //}
+                        if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
+                    }
+                    removeKey("", microServicePath)
+                    serviceFn
+                }
                 //futureResponse.onComplete {
                     //case Success(response) =>
-////                        val end = System.currentTimeMillis
-////                        requestLatency.update(end - start, TimeUnit.MILLISECONDS)
-////                        sndr ! response.copy(headers = stripHeaders(response.headers))
+    ////                        val end = System.currentTimeMillis
+    ////                        requestLatency.update(end - start, TimeUnit.MILLISECONDS)
+    ////                        sndr ! response.copy(headers = stripHeaders(response.headers))
                         //selfActor ! ((start, sndr, response, microService))
                     //case Failure(exn) =>
                         //model ! DeleteService(microService.uuid)
@@ -170,8 +109,14 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                         //log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
                         //selfActor.tell(request, sndr)
                 //}
-            //}
+                futureResponse
+            }
+        }
+      }
 
+      val binding = Http().bindAndHandle(handler = proxy, interface = "localhost", port = 9000)
+
+    def receive = {
         //case (start: Long, sndr: ActorRef, response: HttpResponse, microService: MicroService) =>
             //val end = System.currentTimeMillis
             //model ! Latency(end - start, Some(microService))
