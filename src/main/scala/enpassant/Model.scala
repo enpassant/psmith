@@ -15,15 +15,15 @@ import scala.concurrent.Future
 //import spray.routing.{HttpServiceActor, Route, ValidationRejection}
 //import spray.client.pipelining._
 
-//case class GetServices()
-//case class GetService(serviceId: String)
-//case class PutService(serviceId: String, service: MicroService)
-//case class DeleteService(serviceId: String)
-//case class SetServices(services: List[MicroService])
+case class GetServices()
+case class GetService(serviceId: String)
+case class PutService(serviceId: String, service: MicroService)
+case class DeleteService(serviceId: String)
+case class SetServices(services: List[MicroService])
 
-//case class Started(service: Option[MicroService])
-//case class Failed(service: Option[MicroService])
-//case class Latency(time: Long, service: Option[MicroService])
+case class Started(service: Option[MicroService])
+case class Failed(service: Option[MicroService])
+case class Latency(time: Long, service: Option[MicroService])
 case class GetMetrics()
 
 class Model(val mode: Option[String]) extends Actor with ActorLogging {
