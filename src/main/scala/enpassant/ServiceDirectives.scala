@@ -1,7 +1,7 @@
 package enpassant
 
 import core.CommonDirectives
-import spray.http.HttpMethods._
+import akka.http.scaladsl.model.HttpMethods._
 
 trait ServiceDirectives extends CommonDirectives {
     def serviceLinks = respondWithLinks(jsonLink("/services", "services", GET),

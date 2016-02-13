@@ -8,7 +8,11 @@ resolvers += "spray repo" at "http://repo.spray.io"
 
 val sprayVersion = "1.3.2"
 
-val akkaVersion = "2.3.9"
+val akkaVersion = "2.4.2-RC1"
+
+val akkaStreamVersion = "2.0.3"
+
+ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
 Revolver.settings
 
@@ -21,24 +25,17 @@ resolvers += "spray repo" at "http://repo.spray.io"
 libraryDependencies ++= Seq(
   "com.github.scopt"       %% "scopt"                 % "3.3.0",
   "com.typesafe.akka"      %% "akka-actor"            % akkaVersion,
-//  "com.typesafe.akka"      %% "akka-http-experimental" % "1.0-M4",
-//  "com.typesafe.akka"      %% "akka-slf4j"            % akkaVersion,
-//  "io.spray"                % "spray-can"             % sprayVersion,
-  "io.spray"               %% "spray-client"          % sprayVersion,
-  "io.spray"               %% "spray-routing"         % sprayVersion,
-//  "io.spray"               %% "spray-json"            % sprayVersion,
-  "io.spray"               %% "spray-util"          % sprayVersion,
-  "io.spray"               %% "spray-caching"          % sprayVersion,
+  "com.typesafe.akka"      %% "akka-stream-experimental" % akkaStreamVersion,
+  "com.typesafe.akka"      %% "akka-http-core-experimental" % akkaStreamVersion,
+  "com.typesafe.akka"      %% "akka-http-experimental" % akkaStreamVersion,
+  //"io.spray"               %% "spray-caching"         % sprayVersion,
   "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2",
-//  "org.specs2"             %% "specs2"                % "2.2.2"        % "test",
-//  "com.typesafe.akka"      %% "akka-testkit"          % akkaVersion    % "test",
   "com.github.nscala-time" %% "nscala-time"           % "1.8.0",
   "com.github.ancane"      %% "haldr"                 % "0.1",
-//  "joda-time"              %% "joda-time"             % "2.7",
   "org.json4s"             %% "json4s-jackson"        % "3.2.10",
   "org.json4s"             %% "json4s-ext"            % "3.2.10",
   "io.spray"               %% "spray-testkit"         % sprayVersion   % "test",
-  "nl.grons"               %% "metrics-scala"         % "3.4.0_a2.3"
+  "nl.grons"               %% "metrics-scala"         % "3.5.2_a2.3"
 )
 
 scalacOptions ++= Seq(

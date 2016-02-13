@@ -2,18 +2,21 @@ package enpassant
 
 import core.{Instrumented, Metrics, MetricsStatItem, MetricsStatMap, MicroService}
 
-import akka.actor.{ActorLogging, Actor, ActorRef}
-import akka.io.IO
+import akka.actor.{ActorLogging, Actor, ActorRef, Props}
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.Uri.Path
+import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.Directives._
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.pattern.ask
 import akka.util.Timeout
 import java.util.concurrent.TimeUnit
+import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.Future
-import spray.can.Http
-import spray.http._
-import spray.client.pipelining._
-import spray.routing.{HttpServiceActor, Route, ValidationRejection}
-import spray.client.pipelining._
 
 case class GetServices()
 case class GetService(serviceId: String)
@@ -29,6 +32,16 @@ case class GetMetrics()
 class Model(val mode: Option[String]) extends Actor with ActorLogging {
     import context.dispatcher
 
+    val managedHeaders = List("Host", "Server", "Date", "Content-Type",
+        "Content-Length", "Transfer-Encoding", "Timeout-Access")
+
+    private def stripHeaders(headers: Seq[HttpHeader]):
+        Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
+
+    implicit val timeout = Timeout(3.seconds)
+    implicit val system = context.system
+    //implicit val materializer = ActorMaterializer()
+
     def receive = {
         case GetServices =>
             sender ! Model.services.values.flatMap(_.list.map(_._1))
@@ -41,14 +54,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
 
             val service = Model.findServiceById(serviceId)
             if (service == None) {
-                implicit val timeout = Timeout(3.seconds)
-                implicit val system = context.system
-
-                def pipeline: Future[SendReceive] =
-                    for (
-                        Http.HostConnectorInfo(connector, _) <-
-                            IO(Http) ? Http.HostConnectorSetup(microService.host, port = microService.port)
-                ) yield sendReceive(connector)
+                def pipeline = Http().outgoingConnection(microService.host, microService.port)
                 val key = Model.name(microService.path, microService.runningMode)
                 if (Model.services contains key) {
                     Model.services(key) = Pipelines(key, (microService, Pipeline(microService.uuid, pipeline)) ::
@@ -105,7 +111,9 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
     }
 }
 
-case class Pipeline(id: String, value: Future[SendReceive]) extends Instrumented {
+case class Pipeline(id: String, flow: Model.ConnectionFlow)
+    extends Instrumented
+{
     val startedCounter = metrics.counter("startedCounter." + id)
     val failedCounter = metrics.counter("failedCounter." + id)
     val requestLatency = metrics.timer("requestLatency." + id)
@@ -119,12 +127,16 @@ case class Pipelines(id: String, list: List[(MicroService, Pipeline)]) extends I
 
 object Model extends Instrumented {
     type Collection = scala.collection.mutable.Map[String, Pipelines]
+    type ConnectionFlow = Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]]
 
     private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
 
     private val startedCounter = metrics.counter("startedCounter")
     private val failedCounter = metrics.counter("failedCounter")
     private val requestLatency = metrics.timer("requestLatency")
+
+    def props(mode: Option[String]) = Props(new Model(mode))
+    def name = "model"
 
     def getAllMetrics: MetricsStatMap = {
         MetricsStatMap(Map(("system" ->
