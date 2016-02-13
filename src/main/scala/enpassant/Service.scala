@@ -17,7 +17,7 @@ class Service(val config: Config, val model: ActorRef)
     //with ServiceDirectives
     with ActorLogging
     //with ServiceFormats with MetricsFormats
-    //with Dev
+    with Dev
 {
     import context.dispatcher
     implicit val system = context.system
@@ -28,7 +28,7 @@ class Service(val config: Config, val model: ActorRef)
     println(s"Server online at http://localhost:8080/")
 
     def route = {
-        //debug {
+        debug {
             path("") {
                 //serviceLinks { headComplete }
                 complete {
@@ -80,7 +80,7 @@ class Service(val config: Config, val model: ActorRef)
                     //}
                 //}
             //}
-        //}
+        }
     }
 
     def receive = {
