@@ -20,3 +20,8 @@ class Supervisor(val config: Config) extends Actor with ActorLogging {
     case _ =>
   }
 }
+
+object Supervisor {
+  def props(config: Config) = Props(new Supervisor(config))
+  def name = "supervisor"
+}
