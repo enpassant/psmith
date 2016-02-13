@@ -16,6 +16,7 @@ import akka.io.Tcp
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
 import java.net.InetSocketAddress
+import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.{Success, Failure, Random}
@@ -29,12 +30,12 @@ import scala.util.{Success, Failure, Random}
 class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[ActorRef])
     extends Actor with ActorLogging
 {
-    //import context.dispatcher
+    import context.dispatcher
     //implicit val timeout = Timeout(3.seconds)
     //implicit val system = context.system
     //private val pipeline = sendReceive
-    //val managedHeaders = List("Host", "Server", "Date", "Content-Type",
-        //"Content-Length", "Transfer-Encoding")
+    val managedHeaders = List("Host", "Server", "Date", "Content-Type",
+        "Content-Length", "Transfer-Encoding", "Timeout-Access")
     //val readMethods = List(GET, HEAD, OPTIONS)
     ////val readMethods = List()
 
@@ -42,18 +43,11 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
 
     //IO(Http) ! Http.Bind(self, interface = config.host, port = config.port)
 
-    //private def stripHeaders(headers: List[HttpHeader]):
-        //List[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
-
     implicit val actorSystem = context.system
     implicit val materializer = ActorMaterializer()
-    implicit val ec = actorSystem.dispatcher
 
-      val managedHeaders = List("Host", "Server", "Date", "Content-Type",
-          "Content-Length", "Transfer-Encoding", "Timeout-Access")
-
-      private def stripHeaders(headers: scala.collection.immutable.Seq[HttpHeader]):
-          scala.collection.immutable.Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
+    private def stripHeaders(headers: Seq[HttpHeader]):
+        Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
 
       val proxy = Route { context =>
         val request = context.request
