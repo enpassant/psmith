@@ -65,6 +65,7 @@ class Service(val config: Config)
                     } ~
                     put {
                         entity(as[MicroService]) { entity => ctx =>
+                            log.info(s"Put. $entity")
                             val microService = entity.copy(uuid = serviceId)
                             (model ? PutService(serviceId, microService)) flatMap {
                                 case response: MicroService => ctx.complete(response)

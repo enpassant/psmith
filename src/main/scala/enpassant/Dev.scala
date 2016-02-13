@@ -14,7 +14,7 @@ trait Dev {
             case Some("dev") =>
                 ctx =>
                     val start = System.currentTimeMillis
-                    log.info(ctx.toString)
+                    log.info(ctx.request.toString)
                     val result = route(ctx)
                     val runningTime = System.currentTimeMillis - start
                     log.info(s"Running time is ${runningTime} ms")

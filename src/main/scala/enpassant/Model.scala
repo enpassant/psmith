@@ -4,13 +4,13 @@ import core.{Instrumented, Metrics, MetricsStatItem, MetricsStatMap, MicroServic
 
 import akka.actor.{ActorLogging, Actor, ActorRef, Props}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.HttpHeader
+import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse}
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.pattern.ask
 import akka.util.Timeout
 import java.util.concurrent.TimeUnit
@@ -40,7 +40,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
 
     implicit val timeout = Timeout(3.seconds)
     implicit val system = context.system
-    implicit val materializer = ActorMaterializer()
+    //implicit val materializer = ActorMaterializer()
 
     def receive = {
         case GetServices =>
@@ -54,25 +54,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
 
             val service = Model.findServiceById(serviceId)
             if (service == None) {
-                def pipeline: Route =
-                  Route { context =>
-                    val request = context.request
-                    val updatedUri = request.uri
-                      .withHost(microService.host)
-                      .withPort(microService.port)
-                      .withPath(Path./)
-                    val updatedRequest = request.copy(uri = updatedUri,
-                      headers = stripHeaders(request.headers))
-                      //println("Opening connection to " + request.uri.authority.host.address)
-                      println("Opening connection to " + microService.host + ":" + microService.port)
-                    val flow = Http().outgoingConnection(microService.host, microService.port)
-                    val handler = Source.single(updatedRequest)
-                      //.map(r => r.withHeaders(RawHeader("x-authenticated", "someone")))
-                      .via(flow)
-                      .runWith(Sink.head)
-                      .flatMap(context.complete(_))
-                    handler
-                  }
+                def pipeline = Http().outgoingConnection(microService.host, microService.port)
                 val key = Model.name(microService.path, microService.runningMode)
                 if (Model.services contains key) {
                     Model.services(key) = Pipelines(key, (microService, Pipeline(microService.uuid, pipeline)) ::
@@ -129,7 +111,9 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
     }
 }
 
-case class Pipeline(id: String, route: Route) extends Instrumented {
+case class Pipeline(id: String, flow: Model.ConnectionFlow)
+    extends Instrumented
+{
     val startedCounter = metrics.counter("startedCounter." + id)
     val failedCounter = metrics.counter("failedCounter." + id)
     val requestLatency = metrics.timer("requestLatency." + id)
@@ -143,6 +127,7 @@ case class Pipelines(id: String, list: List[(MicroService, Pipeline)]) extends I
 
 object Model extends Instrumented {
     type Collection = scala.collection.mutable.Map[String, Pipelines]
+    type ConnectionFlow = Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]]
 
     private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
 
