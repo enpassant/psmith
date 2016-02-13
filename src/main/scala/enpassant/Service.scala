@@ -13,10 +13,10 @@ import akka.pattern.ask
 
 class Service(val config: Config, val model: ActorRef)
     extends Actor
-    //extends HttpServiceActor
-    //with ServiceDirectives
+    with ServiceDirectives
     with ActorLogging
-    //with ServiceFormats with MetricsFormats
+    //with ServiceFormats
+    //with MetricsFormats
     with Dev
 {
     import context.dispatcher
@@ -25,15 +25,12 @@ class Service(val config: Config, val model: ActorRef)
 
     val bindingFuture = Http().bindAndHandle(route, config.serviceHost, config.servicePort)
 
-    println(s"Server online at http://localhost:8080/")
+    println(s"Server online at http://${config.serviceHost}:${config.servicePort}/")
 
     def route = {
         debug {
             path("") {
-                //serviceLinks { headComplete }
-                complete {
-                    "Links"
-                }
+                serviceLinks { headComplete }
             }
             //~ pathPrefix("metrics") {
                 //(pathEnd compose get) {
