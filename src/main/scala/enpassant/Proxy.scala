@@ -32,7 +32,6 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
 {
     import context.dispatcher
     //implicit val timeout = Timeout(3.seconds)
-    //implicit val system = context.system
     //private val pipeline = sendReceive
     val managedHeaders = List("Host", "Server", "Date", "Content-Type",
         "Content-Length", "Transfer-Encoding", "Timeout-Access")
@@ -41,9 +40,7 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
 
     //val cache: Cache[HttpResponse] = LruCache(timeToLive = 60 seconds, timeToIdle = 10 seconds)
 
-    //IO(Http) ! Http.Bind(self, interface = config.host, port = config.port)
-
-    implicit val actorSystem = context.system
+    implicit val system = context.system
     implicit val materializer = ActorMaterializer()
 
     private def stripHeaders(headers: Seq[HttpHeader]):
@@ -59,7 +56,7 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
           headers = stripHeaders(request.headers))
           //println("Opening connection to " + request.uri.authority.host.address)
           println("Opening connection to " + config.host + ":" + config.port)
-        val flow = Http(actorSystem).outgoingConnection(config.host, config.port)
+        val flow = Http().outgoingConnection(config.host, config.port)
         val handler = Source.single(updatedRequest)
           //.map(r => r.withHeaders(RawHeader("x-authenticated", "someone")))
           .via(flow)
@@ -68,7 +65,7 @@ class Proxy(val config: Config, val model: ActorRef, val tickActor: Option[Actor
         handler
       }
 
-      val binding = Http(actorSystem).bindAndHandle(handler = proxy, interface = "localhost", port = 9000)
+      val binding = Http().bindAndHandle(handler = proxy, interface = "localhost", port = 9000)
 
     def receive = {
         //case Tcp.Connected(remote, _) =>

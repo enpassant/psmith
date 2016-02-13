@@ -12,6 +12,8 @@ val akkaVersion = "2.4.2-RC1"
 
 val akkaStreamVersion = "2.0.3"
 
+ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
+
 Revolver.settings
 
 //resolvers += "Sonatype snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/"
@@ -37,7 +39,7 @@ libraryDependencies ++= Seq(
   "org.json4s"             %% "json4s-jackson"        % "3.2.10",
   "org.json4s"             %% "json4s-ext"            % "3.2.10",
   "io.spray"               %% "spray-testkit"         % sprayVersion   % "test",
-  "nl.grons"               %% "metrics-scala"         % "3.4.0_a2.3"
+  "nl.grons"               %% "metrics-scala"         % "3.5.2_a2.3"
 )
 
 scalacOptions ++= Seq(
