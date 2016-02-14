@@ -7,48 +7,55 @@ import akka.util.Timeout
 import java.util.UUID
 import scala.concurrent.Future
 import scala.concurrent.duration._
-//import spray.can.Http
-//import spray.http._
-//import HttpMethods._
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.marshalling.Marshal
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, RequestEntity}
+import akka.http.scaladsl.model.HttpMethods._
+import akka.stream.ActorMaterializer
 
 case class Tick()
 case class Restart()
 
 class TickActor(val config: Config) extends Actor with ActorLogging  with ServiceFormats {
-    //implicit val system: ActorSystem = ActorSystem("psmith")
-    //implicit val timeout: Timeout = Timeout(15.seconds)
-    //import scala.concurrent.ExecutionContext.Implicits.global
+    implicit val timeout: Timeout = Timeout(15.seconds)
+    import scala.concurrent.ExecutionContext.Implicits.global
 
-    //val serviceUri = s"http://${config.router.get}/services"
-    //val microService = MicroService(UUID.randomUUID.toString, config.name,
-        //config.host, config.port, config.mode)
+    val serviceUri = s"http://${config.router.get}/services"
+    val microService = MicroService(UUID.randomUUID.toString, config.name,
+        config.host, config.port, config.mode)
+    val entity = Marshal(microService).to[RequestEntity]
 
-    //def register() = {
-        //val response: Future[HttpResponse] =
-            //(IO(Http) ? Put(serviceUri + "/" + microService.uuid, microService))
-                //.mapTo[HttpResponse]
-        //response.map { r => log.debug(r.toString) }
-        //schedule
-    //}
+    implicit val system = context.system
+    implicit val materializer = ActorMaterializer()
 
-    //def schedule() = {
-        //val c = context.system.scheduler.scheduleOnce(60 seconds, self, Tick)
-        //context.become(process(c))
-    //}
+    def register() = {
+        val response: Future[HttpResponse] = entity.flatMap { e =>
+            Http().singleRequest(HttpRequest(method = PUT,
+                uri = serviceUri + "/" + microService.uuid,
+                entity = e))
+        }
+        response.map { r => log.debug(r.toString) }
+        schedule
+    }
+
+    def schedule() = {
+        val c = context.system.scheduler.scheduleOnce(60 seconds, self, Tick)
+        context.become(process(c))
+    }
 
     def receive = {
         case Tick =>
-            //register
+            register
     }
 
-    //def process(cancellable: Cancellable): Receive = {
-        //case Tick =>
-            //register
+    def process(cancellable: Cancellable): Receive = {
+        case Tick =>
+            register
 
-        //case Restart =>
-            //cancellable.cancel
-            //schedule
-    //}
+        case Restart =>
+            cancellable.cancel
+            schedule
+    }
 }
 
 object TickActor {

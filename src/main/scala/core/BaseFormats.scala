@@ -67,7 +67,7 @@ trait BaseFormats {
   implicit def marshaller[A <: AnyRef](mediaType: MediaType)
     (implicit serialization: Serialization, formats: Formats, shouldWritePretty: ShouldWritePretty = ShouldWritePretty.False): ToEntityMarshaller[A] =
     shouldWritePretty match {
-      case ShouldWritePretty.False => Marshaller.StringMarshaller.wrap(MediaTypes.`application/json`)(serialization.write[A])
-      case _                       => Marshaller.StringMarshaller.wrap(MediaTypes.`application/json`)(serialization.writePretty[A])
+      case ShouldWritePretty.False => Marshaller.StringMarshaller.wrap(mediaType)(serialization.write[A])
+      case _                       => Marshaller.StringMarshaller.wrap(mediaType)(serialization.writePretty[A])
     }
 }

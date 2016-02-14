@@ -44,11 +44,13 @@ class Proxy(val config: Config, val routerDefined: Boolean)
         tickActor map { _ ! Restart }
         val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
         if (request.uri.path.tail.head != config.name) {
-            context.complete((StatusCodes.BadGateway,
-                s"Wrong context '${request.uri.path.tail.head}', it must be '${config.name}'!"))
+            val msg = s"Wrong context '${request.uri.path.tail.head}', it must be '${config.name}'!"
+            log.warning(msg)
+            context.complete((StatusCodes.BadGateway, msg))
         } else if (request.uri.path.length < 4) {
-            context.complete((StatusCodes.BadGateway,
-                s"Wrong path '${request.uri.path}'"))
+            val msg = s"Wrong path '${request.uri.path}'"
+            log.warning(msg)
+            context.complete((StatusCodes.BadGateway, msg))
         } else {
             val microServicePath = request.uri.path.tail.tail
             val microServices =
@@ -56,8 +58,10 @@ class Proxy(val config: Config, val routerDefined: Boolean)
             if (microServices.list.isEmpty) {
                 model ! Started(None)
                 model ! Failed(None)
-                context.complete((StatusCodes.BadGateway,
-                    s"No service for path ${request.uri.path}"))
+
+                val msg = s"No service for path ${request.uri.path}"
+                log.warning(msg)
+                context.complete((StatusCodes.BadGateway, msg))
             } else {
                 val (microService, pipeline) = microServices.list(Random.nextInt(microServices.list.size))
                 model ! Started(Some(microService))
@@ -103,7 +107,7 @@ class Proxy(val config: Config, val routerDefined: Boolean)
         }
       }
 
-      val binding = Http().bindAndHandle(handler = proxy, interface = "localhost", port = 9000)
+      val binding = Http().bindAndHandle(handler = proxy, interface = config.host, port = config.port)
 
     def receive = {
         case msg =>
