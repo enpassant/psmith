@@ -43,9 +43,12 @@ class Proxy(val config: Config, val routerDefined: Boolean)
         val request = context.request
         tickActor map { _ ! Restart }
         val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
-        if (request.uri.path.length < 4) {
+        if (request.uri.path.tail.head != config.name) {
             context.complete((StatusCodes.BadGateway,
-                s"Wrong path ${request.uri.path}"))
+                s"Wrong context '${request.uri.path.tail.head}', it must be '${config.name}'!"))
+        } else if (request.uri.path.length < 4) {
+            context.complete((StatusCodes.BadGateway,
+                s"Wrong path '${request.uri.path}'"))
         } else {
             val microServicePath = request.uri.path.tail.tail
             val microServices =
@@ -93,7 +96,7 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                     case exn =>
                         model ! DeleteService(microService.uuid)
                         model ! Failed(Some(microService))
-                        log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
+                        log.warning(s"Service for path '${request.uri.path}' failed with '${exn}'")
                 }
                 futureResponse
             }
