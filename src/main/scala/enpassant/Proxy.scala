@@ -7,7 +7,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpHeader, StatusCodes, Uri}
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Route, RouteResult}
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
@@ -20,7 +20,7 @@ import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.{Success, Failure, Random}
-//import spray.caching._
+import spray.caching._
 
 class Proxy(val config: Config, val routerDefined: Boolean)
     extends Actor with ActorLogging
@@ -33,7 +33,7 @@ class Proxy(val config: Config, val routerDefined: Boolean)
     val readMethods = List(GET, HEAD, OPTIONS)
     //val readMethods = List()
 
-    //val cache: Cache[HttpResponse] = LruCache(timeToLive = 60 seconds, timeToIdle = 10 seconds)
+    val cache: Cache[Future[RouteResult]] = LruCache(timeToLive = 60 seconds, timeToIdle = 10 seconds)
 
     implicit val system = context.system
     implicit val materializer = ActorMaterializer()
@@ -81,17 +81,17 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                       .flatMap(context.complete(_))
                     handler
                 }
-                val futureResponse = if (readMethods contains request.method) {
+                val futureResponse: Future[RouteResult] = if (readMethods contains request.method) {
                     val cacheKey = microServicePath + "_" + runningMode.toString
-                    //cache(cacheKey) {
-                        //serviceFn
-                    //}
-                    serviceFn
+                    (cache(cacheKey) {
+                        log.info("Run serviceFn")
+                        serviceFn
+                    }) flatMap identity
                 } else {
                     @annotation.tailrec
                     def removeKey(prefix: String, path: Uri.Path): Unit = {
                         val cacheKey = prefix + path.head + "_" + runningMode.toString
-                        //cache.remove(cacheKey)
+                        cache.remove(cacheKey)
                         if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
                     }
                     removeKey("", microServicePath)

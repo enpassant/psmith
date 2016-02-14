@@ -28,7 +28,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka"      %% "akka-stream-experimental" % akkaStreamVersion,
   "com.typesafe.akka"      %% "akka-http-core-experimental" % akkaStreamVersion,
   "com.typesafe.akka"      %% "akka-http-experimental" % akkaStreamVersion,
-  //"io.spray"               %% "spray-caching"         % sprayVersion,
+  "io.spray"               %% "spray-caching"         % sprayVersion,
   "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2",
   "com.github.nscala-time" %% "nscala-time"           % "1.8.0",
   "com.github.ancane"      %% "haldr"                 % "0.1",
