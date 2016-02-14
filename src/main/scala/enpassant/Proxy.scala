@@ -26,12 +26,9 @@ class Proxy(val config: Config, val routerDefined: Boolean)
     extends Actor with ActorLogging
 {
     import context.dispatcher
-    //implicit val timeout = Timeout(3.seconds)
-    //private val pipeline = sendReceive
     val managedHeaders = List("Host", "Server", "Date", "Content-Type",
         "Content-Length", "Transfer-Encoding", "Timeout-Access")
     val readMethods = List(GET, HEAD, OPTIONS)
-    //val readMethods = List()
 
     val cache: Cache[Future[RouteResult]] = LruCache(timeToLive = 60 seconds, timeToIdle = 10 seconds)
 
@@ -97,18 +94,12 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                     removeKey("", microServicePath)
                     serviceFn
                 }
-                //futureResponse.onComplete {
-                    //case Success(response) =>
-    ////                        val end = System.currentTimeMillis
-    ////                        requestLatency.update(end - start, TimeUnit.MILLISECONDS)
-    ////                        sndr ! response.copy(headers = stripHeaders(response.headers))
-                        //selfActor ! ((start, sndr, response, microService))
-                    //case Failure(exn) =>
-                        //model ! DeleteService(microService.uuid)
-                        //model ! Failed(Some(microService))
-                        //log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
-                        //selfActor.tell(request, sndr)
-                //}
+                futureResponse.onFailure {
+                    case exn =>
+                        model ! DeleteService(microService.uuid)
+                        model ! Failed(Some(microService))
+                        log.warning(s"Service for path ${request.uri.path} failed with ${exn}")
+                }
                 futureResponse
             }
         }
@@ -117,13 +108,8 @@ class Proxy(val config: Config, val routerDefined: Boolean)
       val binding = Http().bindAndHandle(handler = proxy, interface = "localhost", port = 9000)
 
     def receive = {
-        //case (start: Long, sndr: ActorRef, response: HttpResponse, microService: MicroService) =>
-            //val end = System.currentTimeMillis
-            //model ! Latency(end - start, Some(microService))
-            //sndr ! response.copy(headers = stripHeaders(response.headers))
-
         case msg =>
-            log.info("ConnectionHandler: {}", msg)
+            log.info(s"ConnectionHandler: $msg")
 
     }
 }
