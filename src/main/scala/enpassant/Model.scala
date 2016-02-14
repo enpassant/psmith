@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.Future
+import scala.util.Try
 
 case class GetServices()
 case class GetService(serviceId: String)
@@ -40,7 +41,7 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
 
     implicit val timeout = Timeout(3.seconds)
     implicit val system = context.system
-    //implicit val materializer = ActorMaterializer()
+    implicit val materializer = ActorMaterializer()
 
     def receive = {
         case GetServices =>
@@ -54,7 +55,8 @@ class Model(val mode: Option[String]) extends Actor with ActorLogging {
 
             val service = Model.findServiceById(serviceId)
             if (service == None) {
-                def pipeline = Http().outgoingConnection(microService.host, microService.port)
+                //def pipeline = Http().outgoingConnection(microService.host, microService.port)
+                def pipeline = Http().cachedHostConnectionPool[Long](microService.host, microService.port)
                 val key = Model.name(microService.path, microService.runningMode)
                 if (Model.services contains key) {
                     Model.services(key) = Pipelines(key, (microService, Pipeline(microService.uuid, pipeline)) ::
@@ -127,7 +129,10 @@ case class Pipelines(id: String, list: List[(MicroService, Pipeline)]) extends I
 
 object Model extends Instrumented {
     type Collection = scala.collection.mutable.Map[String, Pipelines]
-    type ConnectionFlow = Flow[HttpRequest, HttpResponse, Future[Http.OutgoingConnection]]
+    type ConnectionFlow = Flow[
+        (HttpRequest, Long),
+        (Try[HttpResponse], Long),
+        Http.HostConnectionPool]
 
     private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
 

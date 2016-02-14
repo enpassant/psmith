@@ -15,7 +15,7 @@ import akka.pattern.{ask, pipe}
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.Future
-import scala.util.{Failure, Random}
+import scala.util.{Success, Failure, Random}
 import spray.caching._
 
 class Proxy(val config: Config, val routerDefined: Boolean)
@@ -74,11 +74,14 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                     val updatedRequest = request.copy(uri = updatedUri,
                         headers = stripHeaders(request.headers))
 
-                    val handler = Source.single(updatedRequest)
+                    val handler = Source.single((updatedRequest, start))
                       //.map(r => r.withHeaders(RawHeader("x-authenticated", "someone")))
                       .via(pipeline.flow)
                       .runWith(Sink.head)
-                      .flatMap(context.complete(_))
+                      .flatMap {
+                          case (Success(response), _) => context.complete(response)
+                          case (Failure(exception), _) => context.reject()
+                      }
                     handler
                 }
                 val futureResponse: Future[RouteResult] = if (readMethods contains request.method) {
