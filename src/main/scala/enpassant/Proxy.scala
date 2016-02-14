@@ -2,7 +2,7 @@ package enpassant
 
 import core.{Config, Instrumented, MicroService, Restart, TickActor}
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, PoisonPill, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorSelection, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpHeader, StatusCodes, Uri}
@@ -11,15 +11,11 @@ import akka.http.scaladsl.server.{Route, RouteResult}
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
-import akka.io.IO
-import akka.io.Tcp
 import akka.pattern.{ask, pipe}
-import akka.util.Timeout
-import java.net.InetSocketAddress
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.Future
-import scala.util.{Success, Failure, Random}
+import scala.util.{Failure, Random}
 import spray.caching._
 
 class Proxy(val config: Config, val routerDefined: Boolean)
@@ -49,7 +45,7 @@ class Proxy(val config: Config, val routerDefined: Boolean)
         val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
         if (request.uri.path.length < 4) {
             context.complete((StatusCodes.BadGateway,
-                s"No service for path ${request.uri.path}"))
+                s"Wrong path ${request.uri.path}"))
         } else {
             val microServicePath = request.uri.path.tail.tail
             val microServices =
@@ -81,7 +77,6 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                 val futureResponse: Future[RouteResult] = if (readMethods contains request.method) {
                     val cacheKey = microServicePath + "_" + runningMode.toString
                     (cache(cacheKey) {
-                        log.info("Run serviceFn")
                         serviceFn
                     }) flatMap identity
                 } else {
