@@ -8,3 +8,12 @@ Simple router and load balancer for (REST) microservices
 * Caching (REST): cache all HTTP read methods (GET, HEAD, OPTIONS), and clear cache at write methods
 * Tagging: mark the micro service server with a tag for special handling (e.g. developing, testing)
 
+## Technologies
+
+* Akka actors
+* Akka-http
+* Spray caching
+* Google ConcurrentLinkedHashMap
+* nscala-time
+* Json4s (jackson)
+* metrics-scala
