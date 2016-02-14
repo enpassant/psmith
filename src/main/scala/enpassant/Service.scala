@@ -24,7 +24,7 @@ class Service(val config: Config)
 
     val bindingFuture = Http().bindAndHandle(route, config.serviceHost, config.servicePort)
 
-    println(s"Server online at http://${config.serviceHost}:${config.servicePort}/")
+    log.info(s"Server online at http://${config.serviceHost}:${config.servicePort}/")
 
     def route = {
         debug {
