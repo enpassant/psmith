@@ -2,15 +2,13 @@ name := """psmith"""
 
 version := "1.0"
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.7"
 
 resolvers += "spray repo" at "http://repo.spray.io"
 
 val sprayVersion = "1.3.2"
 
-val akkaVersion = "2.4.2-RC1"
-
-val akkaStreamVersion = "2.0.3"
+val akkaVersion = "2.4.2-RC3"
 
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
@@ -25,9 +23,7 @@ resolvers += "spray repo" at "http://repo.spray.io"
 libraryDependencies ++= Seq(
   "com.github.scopt"       %% "scopt"                 % "3.3.0",
   "com.typesafe.akka"      %% "akka-actor"            % akkaVersion,
-  "com.typesafe.akka"      %% "akka-stream-experimental" % akkaStreamVersion,
-  "com.typesafe.akka"      %% "akka-http-core-experimental" % akkaStreamVersion,
-  "com.typesafe.akka"      %% "akka-http-experimental" % akkaStreamVersion,
+  "com.typesafe.akka"      %% "akka-http-experimental" % akkaVersion,
   "io.spray"               %% "spray-caching"         % sprayVersion,
   "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2",
   "com.github.nscala-time" %% "nscala-time"           % "1.8.0",

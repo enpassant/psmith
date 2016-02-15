@@ -7,28 +7,11 @@ import akka.http.scaladsl.server.Directives._
 import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.duration._
-//import spray.routing.HttpService
-//import spray.http.{ HttpMethod, MediaType, MediaTypes, Uri }
-//import spray.http.HttpHeaders._
-//import spray.httpx.marshalling._
-//import spray.httpx.unmarshalling._
 import scala.reflect.ClassTag
 
-trait CommonDirectives
-    //extends HttpService
-{
-    //val model: ActorRef
-
+trait CommonDirectives {
     implicit val timeout = Timeout(10.seconds)
     import scala.concurrent.ExecutionContext.Implicits.global
-
-    //def respondWithJson =
-        //respondWithMediaType(MediaTypes.`application/json`)
-
-    //def completeJson(block: ToResponseMarshallable) =
-        //respondWithMediaType(MediaTypes.`application/json`) {
-            //complete(block)
-        //}
 
     def headComplete = (options | head) { complete("") }
 
@@ -36,7 +19,8 @@ trait CommonDirectives
         LinkValue(Uri(uri),
             LinkParams.rel(rel),
             LinkParams.`type`(MediaType.customBinary("application", "json",
-                MediaType.Compressible, Nil, Map("method" -> methods.mkString(" ")))))
+                MediaType.Compressible, Nil,
+                Map("method" -> methods.map(_.name).mkString(" ")))))
     }
 
     def respondWithLinks(links: LinkValue*) = respondWithHeader(Link(links : _*))
