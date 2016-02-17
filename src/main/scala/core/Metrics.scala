@@ -26,12 +26,8 @@ case class MetricsStatItem(metrics: Metrics) extends MetricsStat
 case class MetricsStatMap(map: Map[String, MetricsStat]) extends MetricsStat
 
 trait MetricsFormats extends BaseFormats {
-    lazy val `application/vnd.enpassant.metrics+json`: MediaType.WithFixedCharset =
-        MediaType.customWithFixedCharset(
-            "application",
-            "vnd.enpassant.metrics+json",
-            HttpCharsets.`UTF-8`
-        )
+    lazy val `application/vnd.enpassant.metrics+json` =
+        customMediaTypeUTF8("vnd.enpassant.metrics+json")
 
     lazy val `application/vnd.enpassant.metricstat+json`: MediaType.WithFixedCharset =
         MediaType.customWithFixedCharset(

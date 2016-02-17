@@ -15,6 +15,13 @@ trait CommonDirectives {
 
     def headComplete = (options | head) { complete("") }
 
+    def mtLink(uri: String, rel: String, mt: MediaType, methods: HttpMethod*) = {
+        LinkValue(Uri(uri),
+            LinkParams.rel(rel),
+            LinkParams.`type`(mt.withParams(
+                Map("method" -> methods.map(_.name).mkString(" ")))))
+    }
+
     def jsonLink(uri: String, rel: String, methods: HttpMethod*) = {
         LinkValue(Uri(uri),
             LinkParams.rel(rel),

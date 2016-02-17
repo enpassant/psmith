@@ -13,12 +13,8 @@ case class MicroService(
     runningMode: Option[String] = None)
 
 trait ServiceFormats extends BaseFormats {
-    lazy val `application/vnd.enpassant.service+json`: MediaType.WithFixedCharset =
-        MediaType.customWithFixedCharset(
-            "application",
-            "vnd.enpassant.service+json",
-            HttpCharsets.`UTF-8`
-        )
+    lazy val `application/vnd.enpassant.service+json` =
+        customMediaTypeUTF8("vnd.enpassant.service+json")
 
     implicit val ServiceUnmarshaller = Unmarshaller.firstOf(
         unmarshaller[MicroService](`application/vnd.enpassant.service+json`),
