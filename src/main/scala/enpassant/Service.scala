@@ -64,7 +64,9 @@ class Service(val config: Config)
                         entity(as[MicroService]) { entity => ctx =>
                             val microService = entity.copy(uuid = serviceId)
                             (model ? PutService(serviceId, microService)) flatMap {
-                                case response: MicroService => ctx.complete(response)
+                                case response: MicroService =>
+                                    log.info(s"Service $serviceId has joined.")
+                                    ctx.complete(response)
                                 case _ => ctx.reject()
                             }
                         }
