@@ -7,7 +7,7 @@ import akka.actor.{ActorSystem, Props}
 case class Config(host: String = "0.0.0.0", port: Int = 9100,
     serviceHost: String = "0.0.0.0", servicePort: Int = 9101,
     router: Option[String] = None, mode: Option[String] = None,
-    name: String = "api")
+    name: String = "services")
 
 object Main extends App {
     implicit val actorSystem = ActorSystem("psmith")
@@ -27,7 +27,7 @@ object Main extends App {
         opt[String]('m', "mode") action { (x, c) =>
             c.copy(mode = Some(x)) } text("running mode. e.g.: dev, test")
         opt[String]('n', "name") action { (x, c) =>
-            c.copy(name = x) } text("name. Default: api")
+            c.copy(name = x) } text("name. Default: services")
      }
 
     // parser.parse returns Option[C]
