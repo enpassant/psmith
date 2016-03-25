@@ -7,7 +7,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpHeader, StatusCodes, Uri}
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.server.{Route, RouteResult}
+import akka.http.scaladsl.server.{RequestContext, Route, RouteResult}
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
@@ -39,22 +39,30 @@ class Proxy(val config: Config, val routerDefined: Boolean)
     private def stripHeaders(headers: Seq[HttpHeader]):
         Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
 
-      val proxy = Route { context =>
+    val proxy = Route { context =>
         val request = context.request
         tickActor map { _ ! Restart }
         val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
-        if (request.uri.path.tail.head != config.name) {
-            val msg = s"Wrong context '${request.uri.path.tail.head}', it must be '${config.name}'!"
-            log.warning(msg)
-            context.complete((StatusCodes.BadGateway, msg))
+        if (request.uri.path.tail.isEmpty || request.uri.path.tail.head != config.name) {
+            val microServicePath = context.request.uri.path
+            proxyToMicroService(context, microServicePath, "")
         } else if (request.uri.path.length < 4) {
             val msg = s"Wrong path '${request.uri.path}'"
             log.warning(msg)
             context.complete((StatusCodes.BadGateway, msg))
         } else {
-            val microServicePath = request.uri.path.tail.tail
+            val microServicePath = context.request.uri.path.tail.tail
+            proxyToMicroService(context, microServicePath, microServicePath.tail.head.toString)
+        }
+      }
+
+      def proxyToMicroService(context: RequestContext, microServicePath: Uri.Path,
+          msName: String) =
+      {
+            val request = context.request
+            val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
             val microServices =
-                Model.findServices(microServicePath.tail.head.toString, runningMode)
+                Model.findServices(msName, runningMode)
             if (microServices.list.isEmpty) {
                 model ! Started(None)
                 model ! Failed(None)
@@ -75,7 +83,6 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                         headers = stripHeaders(request.headers))
 
                     val handler = Source.single((updatedRequest, start))
-                      //.map(r => r.withHeaders(RawHeader("x-authenticated", "someone")))
                       .via(pipeline.flow)
                       .runWith(Sink.head)
                       .flatMap {
@@ -85,7 +92,10 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                     handler
                 }
                 val futureResponse: Future[RouteResult] = if (readMethods contains request.method) {
-                    val cacheKey = microServicePath + "_" + runningMode.toString
+                    val authTokenHeader = request.headers.find(h => h.is("x-auth-token")) map {
+                        _.value }
+                    val cacheKey = microServicePath + "_" + authTokenHeader.toString + "_" +
+                        request.uri.rawQueryString.toString + "_" + runningMode.toString
                     (cache(cacheKey) {
                         serviceFn
                     }) flatMap identity
@@ -107,7 +117,6 @@ class Proxy(val config: Config, val routerDefined: Boolean)
                 }
                 futureResponse
             }
-        }
       }
 
       val binding = Http().bindAndHandle(handler = proxy, interface = config.host, port = config.port)
