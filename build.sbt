@@ -2,13 +2,13 @@ name := """psmith"""
 
 version := "1.0"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
 resolvers += "spray repo" at "http://repo.spray.io"
 
 val sprayVersion = "1.3.2"
 
-val akkaVersion = "2.4.2-RC3"
+val akkaVersion = "2.4.2"
 
 ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 
