@@ -31,169 +31,168 @@ case class Latency(time: Long, service: Option[MicroService])
 case class GetMetrics()
 
 class Model(val mode: Option[String]) extends Actor with ActorLogging {
-    import context.dispatcher
+  import context.dispatcher
 
-    val managedHeaders = List("Host", "Server", "Date", "Content-Type",
-        "Content-Length", "Transfer-Encoding", "Timeout-Access")
+  val managedHeaders = List("Host", "Server", "Date", "Content-Type",
+    "Content-Length", "Transfer-Encoding", "Timeout-Access")
 
-    private def stripHeaders(headers: Seq[HttpHeader]):
-        Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
+  private def stripHeaders(headers: Seq[HttpHeader]):
+    Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
 
-    implicit val timeout = Timeout(3.seconds)
-    implicit val system = context.system
-    implicit val materializer = ActorMaterializer()
+  implicit val timeout = Timeout(3.seconds)
+  implicit val system = context.system
+  implicit val materializer = ActorMaterializer()
 
-    def receive = {
-        case GetServices =>
-            sender ! Model.services.values.flatMap(_.list.map(_._1))
+  def receive = {
+    case GetServices =>
+      sender ! Model.services.values.flatMap(_.list.map(_._1))
 
-        case GetService(serviceId) =>
-            sender ! Model.findServiceById(serviceId)
+    case GetService(serviceId) =>
+      sender ! Model.findServiceById(serviceId)
 
-        case PutService(serviceId, microService) =>
-            Model.deleteServices(microService)
+    case PutService(serviceId, microService) =>
+      Model.deleteServices(microService)
 
-            val service = Model.findServiceById(serviceId)
-            if (service == None) {
-                //def pipeline = Http().outgoingConnection(microService.host, microService.port)
-                def pipeline = Http().cachedHostConnectionPool[Long](microService.host, microService.port)
-                val key = Model.name(microService.path, microService.runningMode)
-                if (Model.services contains key) {
-                    Model.services(key) = Pipelines(key, (microService, Pipeline(microService.uuid, pipeline)) ::
-                        Model.services(key).list)
-                } else {
-                    Model.services(key) = Pipelines(key, List((microService, Pipeline(microService.uuid, pipeline))))
-                }
-            }
-            sender ! microService
+      val service = Model.findServiceById(serviceId)
+      if (service == None) {
+        //def pipeline = Http().outgoingConnection(microService.host, microService.port)
+        def pipeline = Http().cachedHostConnectionPool[Long](microService.host, microService.port)
+        val key = Model.name(microService.path, microService.runningMode)
+        if (Model.services contains key) {
+          Model.services(key) = Pipelines(key, (microService, Pipeline(microService.uuid, pipeline)) ::
+            Model.services(key).list)
+        } else {
+          Model.services(key) = Pipelines(key, List((microService, Pipeline(microService.uuid, pipeline))))
+        }
+      }
+      sender ! microService
 
-        case DeleteService(serviceId) =>
-            Model.findServiceById(serviceId) match {
-                case Some(service) =>
-                    Model.deleteServices(service)
-                case None =>
-            }
-            sender ! ""
+    case DeleteService(serviceId) =>
+      Model.findServiceById(serviceId) match {
+        case Some(service) =>
+          Model.deleteServices(service)
+        case None =>
+      }
+      sender ! ""
 
-        case Started(service) =>
-            Model.startedCounter.inc()
-            service match {
-                case Some(ms) =>
-                    val pipelines = Model.findServices(ms.path, ms.runningMode)
-                    pipelines.startedCounter.inc()
-                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
-                    pipeline map { _._2.startedCounter.inc() }
-                case _ =>
-            }
+    case Started(service) =>
+      Model.startedCounter.inc()
+      service match {
+        case Some(ms) =>
+          val pipelines = Model.findServices(ms.path, ms.runningMode)
+          pipelines.startedCounter.inc()
+          val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
+          pipeline map { _._2.startedCounter.inc() }
+            case _ =>
+      }
 
-        case Failed(service) =>
-            Model.failedCounter.inc()
-            service match {
-                case Some(ms) =>
-                    val pipelines = Model.findServices(ms.path, ms.runningMode)
-                    pipelines.failedCounter.inc()
-                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
-                    pipeline map { _._2.failedCounter.inc() }
-                case _ =>
-            }
+    case Failed(service) =>
+      Model.failedCounter.inc()
+      service match {
+        case Some(ms) =>
+          val pipelines = Model.findServices(ms.path, ms.runningMode)
+          pipelines.failedCounter.inc()
+          val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
+          pipeline map { _._2.failedCounter.inc() }
+        case _ =>
+      }
 
-        case Latency(time, service) =>
-            Model.requestLatency.update(time, TimeUnit.MILLISECONDS)
-            service match {
-                case Some(ms) =>
-                    val pipelines = Model.findServices(ms.path, ms.runningMode)
-                    pipelines.requestLatency.update(time, TimeUnit.MILLISECONDS)
-                    val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
-                    pipeline map { _._2.requestLatency.update(time, TimeUnit.MILLISECONDS) }
-                case _ =>
-            }
+    case Latency(time, service) =>
+      Model.requestLatency.update(time, TimeUnit.MILLISECONDS)
+      service match {
+        case Some(ms) =>
+          val pipelines = Model.findServices(ms.path, ms.runningMode)
+          pipelines.requestLatency.update(time, TimeUnit.MILLISECONDS)
+          val pipeline = pipelines.list.find(_._1.uuid == ms.uuid)
+          pipeline map { _._2.requestLatency.update(time, TimeUnit.MILLISECONDS) }
+        case _ =>
+      }
 
-        case GetMetrics =>
-            sender ! Model.getAllMetrics
-    }
+    case GetMetrics =>
+      sender ! Model.getAllMetrics
+  }
 }
 
 case class Pipeline(id: String, flow: Model.ConnectionFlow)
     extends Instrumented
 {
-    val startedCounter = metrics.counter("startedCounter." + id)
-    val failedCounter = metrics.counter("failedCounter." + id)
-    val requestLatency = metrics.timer("requestLatency." + id)
+  val startedCounter = metrics.counter("startedCounter." + id)
+  val failedCounter = metrics.counter("failedCounter." + id)
+  val requestLatency = metrics.timer("requestLatency." + id)
 }
 
 case class Pipelines(id: String, list: List[(MicroService, Pipeline)]) extends Instrumented {
-    val startedCounter = metrics.counter("startedCounter." + id)
-    val failedCounter = metrics.counter("failedCounter." + id)
-    val requestLatency = metrics.timer("requestLatency." + id)
+  val startedCounter = metrics.counter("startedCounter." + id)
+  val failedCounter = metrics.counter("failedCounter." + id)
+  val requestLatency = metrics.timer("requestLatency." + id)
 }
 
 object Model extends Instrumented {
-    type Collection = scala.collection.mutable.Map[String, Pipelines]
-    type ConnectionFlow = Flow[
-        (HttpRequest, Long),
-        (Try[HttpResponse], Long),
-        Http.HostConnectionPool]
+  type Collection = scala.collection.mutable.Map[String, Pipelines]
+  type ConnectionFlow = Flow[
+    (HttpRequest, Long),
+    (Try[HttpResponse], Long),
+    Http.HostConnectionPool]
 
-    private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
+  private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
 
-    private val startedCounter = metrics.counter("startedCounter")
-    private val failedCounter = metrics.counter("failedCounter")
-    private val requestLatency = metrics.timer("requestLatency")
+  private val startedCounter = metrics.counter("startedCounter")
+  private val failedCounter = metrics.counter("failedCounter")
+  private val requestLatency = metrics.timer("requestLatency")
 
-    def props(mode: Option[String]) = Props(new Model(mode))
-    def name = "model"
+  def props(mode: Option[String]) = Props(new Model(mode))
+  def name = "model"
 
-    def getAllMetrics: MetricsStatMap = {
-        MetricsStatMap(Map(("system" ->
-            MetricsStatItem(Metrics(requestLatency, startedCounter, failedCounter)))) ++
-                services.map {
-                    kv: (String, Pipelines) =>
-                        val (k, v) = kv
-                        (k -> MetricsStatMap(Map(("all" ->
-                            MetricsStatItem(Metrics(v.requestLatency, v.startedCounter, v.failedCounter)))) ++
-                            v.list.map {
-                                case (ms, p) => (ms.uuid,
-                                    MetricsStatItem(Metrics(p.requestLatency, p.startedCounter, p.failedCounter)))
-                            }.toMap
-                        ))
-                })
+  def getAllMetrics: MetricsStatMap = {
+    MetricsStatMap(Map(("system" ->
+      MetricsStatItem(Metrics(requestLatency, startedCounter, failedCounter)))) ++
+        services.map {
+          kv: (String, Pipelines) =>
+            val (k, v) = kv
+            (k -> MetricsStatMap(Map(("all" ->
+              MetricsStatItem(Metrics(v.requestLatency, v.startedCounter, v.failedCounter)))) ++
+              v.list.map {
+                case (ms, p) => (ms.uuid,
+                  MetricsStatItem(Metrics(p.requestLatency, p.startedCounter, p.failedCounter)))
+              }.toMap
+            ))
+        })
+  }
+
+  def getAllServices = {
+    services.values.flatMap(_.list.map(_._1))
+  }
+
+  def findServiceById(serviceId: String) = {
+    getAllServices.find(_.uuid == serviceId)
+  }
+
+  def findServices(path: String, runningMode: Option[String]): Pipelines = {
+    val key = name(path, runningMode)
+    val keyNone = name(path, None)
+    if (services contains key) {
+      services(key)
+    } else if (runningMode != None && services.contains(keyNone)) {
+      services(keyNone)
+    } else {
+      Pipelines("", List())
     }
+  }
 
-    def getAllServices = {
-        services.values.flatMap(_.list.map(_._1))
-    }
+  def name(path: String, runningMode: Option[String]) = runningMode match {
+    case Some(mode) => s"${path}-${mode}"
+    case None => s"${path}"
+  }
 
-    def findServiceById(serviceId: String) = {
-        getAllServices.find(_.uuid == serviceId)
-    }
-
-    def findServices(path: String, runningMode: Option[String]): Pipelines = {
-        val key = name(path, runningMode)
-        val keyNone = name(path, None)
-        if (services contains key) {
-            services(key)
-        } else if (runningMode != None && services.contains(keyNone)) {
-            services(keyNone)
-        } else {
-            Pipelines("", List())
+  private def deleteServices(service: MicroService) = {
+    val key = name(service.path, service.runningMode)
+    if (services contains key) {
+      val pipelines = services(key).list filterNot {
+        case (s, p) => (service.uuid == s.uuid) ||
+          (service.host == s.host && service.port == s.port)
         }
+        if (pipelines.isEmpty) services.remove(key)
+        else services(key) = Pipelines(key, pipelines)
     }
-
-    def name(path: String, runningMode: Option[String]) = runningMode match {
-        case Some(mode) => s"${path}-${mode}"
-        case None => s"${path}"
-    }
-
-    private def deleteServices(service: MicroService) = {
-        val key = name(service.path, service.runningMode)
-        if (services contains key) {
-            val pipelines = services(key).list filterNot {
-                case (s, p) => (service.uuid == s.uuid) ||
-                    (service.host == s.host && service.port == s.port)
-            }
-            if (pipelines.isEmpty) services.remove(key)
-            else services(key) = Pipelines(key, pipelines)
-        }
-    }
+  }
 }
-// vim: set ts=4 sw=4 et:
