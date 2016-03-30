@@ -40,6 +40,22 @@ extends Actor with ActorLogging
   private def stripHeaders(headers: Seq[HttpHeader]):
     Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
 
+  private def mapLinkHeaders(prefix: String)(headers: Seq[HttpHeader]):
+    Seq[HttpHeader] = headers.map { header =>
+      if (header.name != "Link") header
+      else addPrefixTo(prefix)(header)
+  }
+
+  private def addPrefixTo(prefix: String)(header: HttpHeader): HttpHeader = {
+    val values = header.value.split(",")
+    val regexp = "<([^>]+)>(.*)".r
+    val prefixedValues = values map { value =>
+      regexp.replaceAllIn(value, "<" + prefix + "$1>$2")
+    }
+    val prefixed = prefixedValues mkString ","
+    RawHeader("Link", prefixed)
+  }
+
   val proxy = Route { context =>
     val request = context.request
     tickActor map { _ ! Restart }
@@ -88,7 +104,12 @@ extends Actor with ActorLogging
               .via(pipeline.flow)
               .runWith(Sink.head)
               .flatMap {
-                case (Success(response), _) => context.complete(response)
+                case (Success(response), _) =>
+                  if (msName == "") context.complete(response)
+                  else {
+                    val mappedResponse = response.mapHeaders(mapLinkHeaders("/" + config.name))
+                    context.complete(mappedResponse)
+                  }
                 case (Failure(exception), _) => context.reject()
               }
               handler
