@@ -134,7 +134,7 @@ object Model extends Instrumented {
     (Try[HttpResponse], Long),
     Http.HostConnectionPool]
 
-  private var services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
+  private val services: Model.Collection = scala.collection.mutable.Map.empty[String, Pipelines]
 
   private val startedCounter = metrics.counter("startedCounter")
   private val failedCounter = metrics.counter("failedCounter")
