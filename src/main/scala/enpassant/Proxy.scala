@@ -26,7 +26,7 @@ extends Actor with ActorLogging
     "Content-Length", "Transfer-Encoding", "Timeout-Access")
   val readMethods = List(GET, HEAD, OPTIONS)
 
-  val cache: Cache[Future[RouteResult]] = LruCache(timeToLive = 60 seconds,
+  val cache: Cache[RouteResult] = LruCache(timeToLive = 60 seconds,
     timeToIdle = 10 seconds)
 
   implicit val system = context.system
@@ -89,62 +89,72 @@ extends Actor with ActorLogging
       val (microService, pipeline) = microServices.list(
         Random.nextInt(microServices.list.size))
       model ! Started(Some(microService))
-      val start = System.currentTimeMillis
-      def serviceFn = {
-        val updatedUri = request.uri
-          .withHost(microService.host)
-          .withPort(microService.port)
-          .withPath(microServicePath)
-        val updatedRequest = request.copy(uri = updatedUri,
-          headers = stripHeaders(request.headers))
 
-        val handler = Source.single((updatedRequest, start))
-          .via(pipeline.flow)
-          .runWith(Sink.head)
-          .flatMap {
-            case (Success(response), _) =>
-              if (msName == "") context.complete(response)
-              else {
-                val mappedResponse = response.mapHeaders(mapLinkHeaders("/" + config.name))
-                context.complete(mappedResponse)
-              }
-            case (Failure(exception), _) => context.reject()
-          }
-        handler
-      }
+      val updatedUri = request.uri
+        .withHost(microService.host)
+        .withPort(microService.port)
+        .withPath(microServicePath)
+      val updatedRequest = request.copy(uri = updatedUri,
+        headers = stripHeaders(request.headers))
 
-      val futureResponse: Future[RouteResult] = {
-        val authTokenHeader = request.headers.find(h => h.is("x-auth-token")) map { _.value }
-        val cacheKeySuffix = "_" + authTokenHeader.toString + "_" +
-          request.uri.rawQueryString.toString + "_" + runningMode.toString
-        if (readMethods contains request.method) {
-          val authTokenHeader = request.headers.find(h => h.is("x-auth-token")) map {
-            _.value }
-          val cacheKey = microServicePath + cacheKeySuffix
-          (cache(cacheKey) {
-            serviceFn
-          }) flatMap identity
-        } else {
-          @annotation.tailrec
-          def removeKey(prefix: String, path: Uri.Path): Unit = {
-            val cacheKey = prefix + path.head + cacheKeySuffix
-            cache.remove(cacheKey)
-            if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
-          }
-          removeKey("", microServicePath)
-          serviceFn
-        }
-      }
-
-      futureResponse.onFailure {
-        case exn =>
-          model ! DeleteService(microService.uuid)
-          model ! Failed(Some(microService))
-          log.warning(s"Service for path '${request.uri.path}' failed with '${exn}'")
-      }
-
-      futureResponse
+      val updatedContext = context.withRequest(updatedRequest)
+      sendRequestTo(microService, pipeline, updatedContext, microServicePath, msName)
     }
+  }
+
+  def sendRequestTo(
+    microService: MicroService,
+    pipeline: Pipeline,
+    context: RequestContext,
+    microServicePath: Uri.Path,
+    msName: String) =
+  {
+    val start = System.currentTimeMillis
+    val request = context.request
+    val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
+    def serviceFn = {
+      val handler = Source.single((request, start))
+        .via(pipeline.flow)
+        .runWith(Sink.head)
+        .flatMap {
+          case (Success(response), _) =>
+            if (msName == "") context.complete(response)
+            else {
+              val mappedResponse = response.mapHeaders(mapLinkHeaders("/" + config.name))
+              context.complete(mappedResponse)
+            }
+          case (Failure(exception), _) => context.reject()
+        }
+      handler
+    }
+
+    val futureResponse: Future[RouteResult] = {
+      val authTokenHeader = request.headers.find(h => h.is("x-auth-token")) map { _.value }
+      val cacheKeySuffix = "_" + authTokenHeader.toString + "_" +
+        request.uri.rawQueryString.toString + "_" + runningMode.toString
+      if (readMethods contains request.method) {
+        val cacheKey = microServicePath.toString + cacheKeySuffix
+        cache(cacheKey)(serviceFn)
+      } else {
+        @annotation.tailrec
+        def removeKey(prefix: String, path: Uri.Path): Unit = {
+          val cacheKey = prefix + path.head + cacheKeySuffix
+          val removed = cache.remove(cacheKey)
+          if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
+        }
+        removeKey("", microServicePath)
+        serviceFn
+      }
+    }
+
+    futureResponse.onFailure {
+      case exn =>
+        model ! DeleteService(microService.uuid)
+        model ! Failed(Some(microService))
+        log.warning(s"Service for path '${request.uri.path}' failed with '${exn}'")
+    }
+
+    futureResponse
   }
 
   def restartTick(route: Route): Route = {
