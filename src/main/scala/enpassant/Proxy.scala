@@ -130,16 +130,18 @@ extends Actor with ActorLogging
 
     val futureResponse: Future[RouteResult] = {
       val authTokenHeader = request.headers.find(h => h.is("x-auth-token")) map { _.value }
-      val cacheKeySuffix = "_" + authTokenHeader.toString + "_" +
-        request.uri.rawQueryString.toString + "_" + runningMode.toString
       if (readMethods contains request.method) {
+        val cacheKeySuffix = "_" + authTokenHeader.toString + "_" +
+          request.uri.rawQueryString.toString + "_" + runningMode.toString
         val cacheKey = microServicePath.toString + cacheKeySuffix
         cache(cacheKey)(serviceFn)
       } else {
         @annotation.tailrec
         def removeKey(prefix: String, path: Uri.Path): Unit = {
-          val cacheKey = prefix + path.head + cacheKeySuffix
-          val removed = cache.remove(cacheKey)
+          val cacheKeyPrefix = prefix + path.head + "_"
+          cache.keys.foreach { case key: String =>
+            if (key.startsWith(cacheKeyPrefix)) cache.remove(key)
+          }
           if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
         }
         removeKey("", microServicePath)
