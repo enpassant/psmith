@@ -119,14 +119,9 @@ extends Actor with ActorLogging
     }
     Future.sequence(responses) map { results =>
       val headers = results.flatMap {
-        case RouteResult.Complete(response) =>
-          log.info(s"$response")
-          response.headers
-        case _ =>
-          log.info(s"rejected")
-          List()
+        case RouteResult.Complete(response) => response.headers
+        case _ => List()
       }.to[Seq]
-      log.info(s"$headers")
       RouteResult.Complete(HttpResponse(headers = headers))
     }
   }
