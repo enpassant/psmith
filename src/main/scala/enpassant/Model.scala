@@ -159,6 +159,10 @@ object Model extends Instrumented {
         })
   }
 
+  def getServices = {
+    services.values.flatMap(_.list)
+  }
+
   def getAllServices = {
     services.values.flatMap(_.list.map(_._1))
   }

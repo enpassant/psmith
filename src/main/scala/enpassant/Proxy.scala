@@ -5,7 +5,7 @@ import core.{Config, Instrumented, MicroService, Restart, TickActor}
 import akka.actor.{Actor, ActorLogging, ActorSelection, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.{HttpHeader, StatusCodes, Uri}
+import akka.http.scaladsl.model.{HttpHeader, HttpResponse, StatusCodes, Uri}
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server.{RequestContext, Route, RouteResult}
 import akka.http.scaladsl.server.Directives._
@@ -54,19 +54,28 @@ extends Actor with ActorLogging
   }
 
   val proxy = Route {
-    restartTick { context =>
-      val request = context.request
-      val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
-      if (request.uri.path.tail.isEmpty || request.uri.path.tail.head != config.name) {
-        val microServicePath = context.request.uri.path
-        proxyToMicroService(context, microServicePath, "")
-      } else if (request.uri.path.length < 4) {
-        val msg = s"Wrong path '${request.uri.path}'"
-        log.warning(msg)
-        context.complete((StatusCodes.BadGateway, msg))
-      } else {
-        val microServicePath = context.request.uri.path.tail.tail
-        proxyToMicroService(context, microServicePath, microServicePath.tail.head.toString)
+    restartTick {
+      path("") {
+        head {
+          context =>
+            val microServicePath = context.request.uri.path
+            collectHeads(context, microServicePath)
+        }
+      } ~ {
+        context =>
+          val request = context.request
+          val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
+          if (request.uri.path.tail.isEmpty || request.uri.path.tail.head != config.name) {
+            val microServicePath = context.request.uri.path
+            proxyToMicroService(context, microServicePath, "")
+          } else if (request.uri.path.length <= config.name.length) {
+            val msg = s"Wrong path '${request.uri.path}'"
+            log.warning(msg)
+            context.complete((StatusCodes.BadGateway, msg))
+          } else {
+            val microServicePath = context.request.uri.path.tail.tail
+            proxyToMicroService(context, microServicePath, microServicePath.tail.head.toString)
+          }
       }
     }
   }
@@ -99,6 +108,26 @@ extends Actor with ActorLogging
 
       val updatedContext = context.withRequest(updatedRequest)
       sendRequestTo(microService, pipeline, updatedContext, microServicePath, msName)
+    }
+  }
+
+  val collectHeads = (context: RequestContext, microServicePath: Uri.Path) =>
+  {
+    val responses = Model.getServices map { case (microService, pipeline) =>
+      log.info(s"$microService")
+      sendRequestTo(microService, pipeline, context, microServicePath, microService.path)
+    }
+    Future.sequence(responses) map { results =>
+      val headers = results.flatMap {
+        case RouteResult.Complete(response) =>
+          log.info(s"$response")
+          response.headers
+        case _ =>
+          log.info(s"rejected")
+          List()
+      }.to[Seq]
+      log.info(s"$headers")
+      RouteResult.Complete(HttpResponse(headers = headers))
     }
   }
 
