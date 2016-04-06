@@ -90,9 +90,8 @@ extends Actor with ActorLogging
     val futureResponse: Future[RouteResult] = {
       val authTokenHeader = request.headers.find(h => h.is("x-auth-token")) map { _.value }
       if (readMethods contains request.method) {
-        val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
         val cacheKeySuffix = "_" + authTokenHeader.toString + "_" +
-          request.uri.rawQueryString.toString + "_" + runningMode.toString
+          request.uri.rawQueryString.toString + "_" + request.method.toString
         val cacheKey = request.uri.path.toString + cacheKeySuffix
         cache(cacheKey)(serviceFn)
       } else {
