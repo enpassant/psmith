@@ -57,16 +57,15 @@ extends Actor with ActorLogging
     restartTick {
       path("") {
         head {
-          context =>
+          cacheResult { context =>
             val microServicePath = context.request.uri.path
-            cacheResult(context) {
-              collectHeads(context, microServicePath)
-            }
+            collectHeads(context, microServicePath)
+          }
         }
       } ~ {
-        context =>
-          val request = context.request
-          val serviceFn: Future[RouteResult] = {
+        cacheResult {
+          context =>
+            val request = context.request
             val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
             if (request.uri.path.tail.isEmpty || request.uri.path.tail.head != config.name) {
               val microServicePath = context.request.uri.path
@@ -79,21 +78,20 @@ extends Actor with ActorLogging
               val microServicePath = context.request.uri.path.tail.tail
               proxyToMicroService(context, microServicePath, microServicePath.tail.head.toString)
             }
-          }
-        cacheResult(context)(serviceFn)
+        }
       }
     }
   }
 
-  def cacheResult(context: RequestContext)(serviceFn: Future[RouteResult]) = {
-    val request = context.request
-    val futureResponse: Future[RouteResult] = {
+  def cacheResult(route: Route): Route = {
+    def futureResponse(context: RequestContext): Future[RouteResult] = {
+      val request = context.request
       val authTokenHeader = request.headers.find(h => h.is("x-auth-token")) map { _.value }
       if (readMethods contains request.method) {
         val cacheKeySuffix = "_" + authTokenHeader.toString + "_" +
           request.uri.rawQueryString.toString + "_" + request.method.toString
         val cacheKey = request.uri.path.toString + cacheKeySuffix
-        cache(cacheKey)(serviceFn)
+        cache(cacheKey)(route(context))
       } else {
         @annotation.tailrec
         def removeKey(prefix: String, path: Uri.Path): Unit = {
@@ -104,10 +102,10 @@ extends Actor with ActorLogging
           if (!path.tail.isEmpty) removeKey(prefix + path.head, path.tail)
         }
         removeKey("", request.uri.path)
-        serviceFn
+        route(context)
       }
     }
-    futureResponse
+    context => futureResponse(context)
   }
 
   def proxyToMicroService(context: RequestContext, microServicePath: Uri.Path,
@@ -166,7 +164,7 @@ extends Actor with ActorLogging
     val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
     def serviceFn = {
       val handler = Source.single((request, start))
-        .via(pipeline.flow)
+        .via(pipeline.flow.completionTimeout(2.second))
         .runWith(Sink.head)
         .flatMap {
           case (Success(response), _) =>
@@ -175,16 +173,13 @@ extends Actor with ActorLogging
               val mappedResponse = response.mapHeaders(mapLinkHeaders("/" + config.name))
               context.complete(mappedResponse)
             }
-          case (Failure(exception), _) => context.reject()
+          case (Failure(exception), _) =>
+            model ! DeleteService(microService.uuid)
+            model ! Failed(Some(microService))
+            log.warning(s"Service for path '${request.uri.path}' failed with '$exception'")
+            context.reject()
         }
       handler
-    }
-
-    serviceFn.onFailure {
-      case exn =>
-        model ! DeleteService(microService.uuid)
-        model ! Failed(Some(microService))
-        log.warning(s"Service for path '${request.uri.path}' failed with '${exn}'")
     }
 
     serviceFn
