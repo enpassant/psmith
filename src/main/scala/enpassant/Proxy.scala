@@ -137,15 +137,14 @@ extends Actor with ActorLogging
         headers = stripHeaders(request.headers))
 
       val updatedContext = context.withRequest(updatedRequest)
-      sendRequestTo(microService, pipeline, updatedContext, microServicePath, msName)
+      sendRequestTo(microService, pipeline, updatedContext, msName)
     }
   }
 
   val collectHeads = (context: RequestContext, microServicePath: Uri.Path) =>
   {
     val responses = Model.getServices map { case (microService, pipeline) =>
-      log.info(s"$microService")
-      sendRequestTo(microService, pipeline, context, microServicePath, microService.path)
+      sendRequestTo(microService, pipeline, context, microService.path)
     }
     Future.sequence(responses) map { results =>
       val headers = results.flatMap {
@@ -160,7 +159,6 @@ extends Actor with ActorLogging
     microService: MicroService,
     pipeline: Pipeline,
     context: RequestContext,
-    microServicePath: Uri.Path,
     msName: String): Future[RouteResult] =
   {
     val start = System.currentTimeMillis
