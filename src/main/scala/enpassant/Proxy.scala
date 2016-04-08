@@ -22,8 +22,8 @@ class Proxy(val config: Config, val routerDefined: Boolean)
 extends Actor with ActorLogging
 {
   import context.dispatcher
-  val managedHeaders = List("Host", "Server", "Date", "Content-Type",
-    "Content-Length", "Transfer-Encoding", "Timeout-Access")
+  val managedHeaders = List("host", "server", "date", "content-type",
+    "content-length", "transfer-encoding", "timeout-access")
   val readMethods = List(GET, HEAD, OPTIONS)
 
   val cache: Cache[RouteResult] = LruCache(timeToLive = 60 seconds,
@@ -35,7 +35,7 @@ extends Actor with ActorLogging
   val model = context.actorSelection("../" + Model.name)
 
   private def stripHeaders(headers: Seq[HttpHeader]):
-    Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
+    Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.lowercaseName))
 
   private def mapLinkHeaders(prefix: String)(headers: Seq[HttpHeader]):
     Seq[HttpHeader] = headers.map { header =>
@@ -43,11 +43,12 @@ extends Actor with ActorLogging
       else addPrefixTo(prefix)(header)
   }
 
+  private val linkPattern = "<([^>]+)>(.*)".r
+
   private def addPrefixTo(prefix: String)(header: HttpHeader): HttpHeader = {
     val values = header.value.split(",")
-    val regexp = "<([^>]+)>(.*)".r
     val prefixedValues = values map { value =>
-      regexp.replaceAllIn(value, "<" + prefix + "$1>$2")
+      linkPattern.replaceAllIn(value, "<" + prefix + "$1>$2")
     }
     val prefixed = prefixedValues mkString ","
     RawHeader("Link", prefixed)
@@ -149,7 +150,23 @@ extends Actor with ActorLogging
         case RouteResult.Complete(response) => response.headers
         case _ => List()
       }.to[Seq]
-      RouteResult.Complete(HttpResponse(headers = headers))
+      var links: Seq[String] = headers.flatMap { header =>
+        if (header.is("link")) {
+          header.value.split(",")
+        } else {
+          Seq()
+        }
+      }
+      val linkMap = links map { link => linkPath(link) -> link } toMap
+      val newHeaders = linkMap.values.map { link => RawHeader("Link", link) }.to[Seq]
+      RouteResult.Complete(HttpResponse(headers = newHeaders))
+    }
+  }
+
+  def linkPath(link: String) = {
+    link match {
+      case linkPattern(path, params) => path
+      case _ => ""
     }
   }
 
