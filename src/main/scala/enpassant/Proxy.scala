@@ -109,7 +109,9 @@ extends Actor with ActorLogging
     context => futureResponse(context)
   }
 
-  def proxyToMicroService(context: RequestContext, microServicePath: Uri.Path,
+  def proxyToMicroService(
+    context: RequestContext,
+    microServicePath: Uri.Path,
     msName: String): Future[RouteResult] =
   {
     val request = context.request
@@ -128,22 +130,15 @@ extends Actor with ActorLogging
         Random.nextInt(microServices.list.size))
       model ! Started(Some(microService))
 
-      val updatedUri = request.uri
-        .withHost(microService.host)
-        .withPort(microService.port)
-        .withPath(microServicePath)
-      val updatedRequest = request.copy(uri = updatedUri,
-        headers = stripHeaders(request.headers))
-
-      val updatedContext = context.withRequest(updatedRequest)
-      sendRequestTo(microService, pipeline, updatedContext, msName)
+      sendRequestTo(microService, pipeline, context, microServicePath, msName)
     }
   }
 
   val collectHeads = (context: RequestContext, microServicePath: Uri.Path) =>
   {
     val responses = Model.getServices map { case (microService, pipeline) =>
-      sendRequestTo(microService, pipeline, context, microService.path)
+      val request = context.request
+      sendRequestTo(microService, pipeline, context, microServicePath, microService.path)
     }
     Future.sequence(responses) map { results =>
       val headers = results.flatMap {
@@ -174,13 +169,21 @@ extends Actor with ActorLogging
     microService: MicroService,
     pipeline: Pipeline,
     context: RequestContext,
+    microServicePath: Uri.Path,
     msName: String): Future[RouteResult] =
   {
     val start = System.currentTimeMillis
     val request = context.request
-    val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
+    val updatedUri = request.uri
+      .withHost(microService.host)
+      .withPort(microService.port)
+      .withPath(microServicePath)
+    val updatedRequest = request.copy(uri = updatedUri,
+      headers = stripHeaders(request.headers))
+    val updatedContext = context.withRequest(updatedRequest)
+    val runningMode = updatedRequest.cookies.find(_.name == "runningMode").map(_.value)
     def serviceFn = {
-      val handler = Source.single((request, start))
+      val handler = Source.single((updatedRequest, start))
         .via(pipeline.flow.completionTimeout(2.second))
         .runWith(Sink.head)
         .flatMap {
@@ -194,7 +197,7 @@ extends Actor with ActorLogging
             model ! DeleteService(microService.uuid)
             model ! Failed(Some(microService))
             log.warning(s"Service for path '${request.uri.path}' failed with '$exception'")
-            context.reject()
+            updatedContext.reject()
         }
       handler
     }
