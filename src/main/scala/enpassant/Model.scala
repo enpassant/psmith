@@ -33,12 +33,6 @@ case class GetMetrics()
 class Model(val mode: Option[String]) extends Actor with ActorLogging {
   import context.dispatcher
 
-  val managedHeaders = List("Host", "Server", "Date", "Content-Type",
-    "Content-Length", "Transfer-Encoding", "Timeout-Access")
-
-  private def stripHeaders(headers: Seq[HttpHeader]):
-    Seq[HttpHeader] = headers.filterNot(h => managedHeaders.contains(h.name))
-
   implicit val timeout = Timeout(3.seconds)
   implicit val system = context.system
   implicit val materializer = ActorMaterializer()
