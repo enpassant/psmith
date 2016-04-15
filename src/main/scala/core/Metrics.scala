@@ -19,6 +19,7 @@ case class Metrics(
   def minLoad = min / 1000000 * (startedCount - successCount - failedCount)
   def meanLoad = mean / 1000000 * (startedCount - successCount - failedCount)
   def maxLoad = max / 1000000 * (startedCount - successCount - failedCount)
+  def estimatedProcessing = (startedCount - successCount - failedCount) * oneMinuteRate
 }
 
 sealed trait MetricsStat

@@ -1,6 +1,6 @@
 package enpassant
 
-import core.{Config, Instrumented, MicroService, Restart, TickActor}
+import core.{Config, Instrumented, Metrics, MicroService, Restart, TickActor}
 
 import akka.actor.{Actor, ActorLogging, ActorSelection, Props}
 import akka.http.scaladsl.Http
@@ -70,14 +70,15 @@ extends Actor with ActorLogging
             val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
             if (request.uri.path.tail.isEmpty || request.uri.path.tail.head != config.name) {
               val microServicePath = context.request.uri.path
-              proxyToMicroService(context, microServicePath, "")
+              proxyToMicroService(context, microServicePath, "", chooseMicroServiceAdaptive)
             } else if (request.uri.path.length <= config.name.length) {
               val msg = s"Wrong path '${request.uri.path}'"
               log.warning(msg)
               context.complete((StatusCodes.BadGateway, msg))
             } else {
               val microServicePath = context.request.uri.path.tail.tail
-              proxyToMicroService(context, microServicePath, microServicePath.tail.head.toString)
+              val msName = microServicePath.tail.head.toString
+              proxyToMicroService(context, microServicePath, msName, chooseMicroServiceAdaptive)
             }
         }
       }
@@ -109,10 +110,25 @@ extends Actor with ActorLogging
     context => futureResponse(context)
   }
 
+  def chooseMicroServiceAdaptive(pipelines: Pipelines): (MicroService, Pipeline) = {
+    pipelines.list reduce { (best, current) =>
+      val (msB, pB) = best
+      val (msC, pC) = current
+      val metricsBest = Metrics(pB.requestLatency, pB.startedCounter, pB.failedCounter)
+      val metricsCurrent = Metrics(pC.requestLatency, pC.startedCounter, pC.failedCounter)
+      if (metricsBest.estimatedProcessing < metricsCurrent.estimatedProcessing) {
+        best
+      } else {
+        current
+      }
+    }
+  }
+
   def proxyToMicroService(
     context: RequestContext,
     microServicePath: Uri.Path,
-    msName: String): Future[RouteResult] =
+    msName: String,
+    chooseMicroService: Pipelines => (MicroService, Pipeline)): Future[RouteResult] =
   {
     val request = context.request
     val runningMode = request.cookies.find(_.name == "runningMode").map(_.value)
@@ -138,6 +154,7 @@ extends Actor with ActorLogging
   {
     val responses = Model.getServices map { case (microService, pipeline) =>
       val request = context.request
+      model ! Started(Some(microService))
       sendRequestTo(microService, pipeline, context, microServicePath, microService.path)
     }
     Future.sequence(responses) map { results =>
@@ -188,6 +205,8 @@ extends Actor with ActorLogging
         .runWith(Sink.head)
         .flatMap {
           case (Success(response), _) =>
+            val end = System.currentTimeMillis
+            model ! Latency(end - start, Some(microService))
             if (msName == "") context.complete(response)
             else {
               val mappedResponse = response.mapHeaders(mapLinkHeaders("/" + config.name))
