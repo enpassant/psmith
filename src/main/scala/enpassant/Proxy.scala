@@ -116,7 +116,7 @@ extends Actor with ActorLogging
       val (msC, pC) = current
       val metricsBest = Metrics(pB.requestLatency, pB.startedCounter, pB.failedCounter)
       val metricsCurrent = Metrics(pC.requestLatency, pC.startedCounter, pC.failedCounter)
-      if (metricsBest.estimatedProcessing < metricsCurrent.estimatedProcessing) {
+      if (metricsBest.meanLoad < metricsCurrent.meanLoad) {
         best
       } else {
         current
