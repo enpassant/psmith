@@ -2,16 +2,12 @@ package core
 
 import enpassant.Supervisor
 
-import akka.actor.{ActorSystem, Props}
-
 case class Config(host: String = "0.0.0.0", port: Int = 9100,
   serviceHost: String = "0.0.0.0", servicePort: Int = 9101,
   router: Option[String] = None, mode: Option[String] = None,
   name: String = "services")
 
 object Main extends App {
-  implicit val actorSystem = ActorSystem("psmith")
-
   val parser = new scopt.OptionParser[Config]("psmith") {
     head("psmith", "1.0")
     opt[String]('h', "host") action { (x, c) =>
@@ -33,7 +29,7 @@ object Main extends App {
   // parser.parse returns Option[C]
   parser.parse(args, Config()) match {
     case Some(config) =>
-      val superVisor = actorSystem.actorOf(Supervisor.props(config), Supervisor.name)
+      val superVisor = Supervisor.actorSystem.actorOf(Supervisor.props(config), Supervisor.name)
 
     case None =>
   }

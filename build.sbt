@@ -21,17 +21,18 @@ resolvers += Resolver.sonatypeRepo("public")
 resolvers += "spray repo" at "http://repo.spray.io"
 
 libraryDependencies ++= Seq(
-  "com.github.scopt"       %% "scopt"                 % "3.3.0",
-  "com.typesafe.akka"      %% "akka-actor"            % akkaVersion,
-  "com.typesafe.akka"      %% "akka-http-experimental" % akkaVersion,
-  "io.spray"               %% "spray-caching"         % sprayVersion,
+  "com.github.scopt"       %% "scopt"                   % "3.3.0",
+  "com.typesafe.akka"      %% "akka-actor"              % akkaVersion,
+  "com.typesafe.akka"      %% "akka-http-experimental"  % akkaVersion,
+  "io.spray"               %% "spray-caching"           % sprayVersion,
   "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2",
-  "com.github.nscala-time" %% "nscala-time"           % "1.8.0",
-  "com.github.ancane"      %% "haldr"                 % "0.1",
-  "org.json4s"             %% "json4s-jackson"        % "3.2.10",
-  "org.json4s"             %% "json4s-ext"            % "3.2.10",
-  "io.spray"               %% "spray-testkit"         % sprayVersion   % "test",
-  "nl.grons"               %% "metrics-scala"         % "3.5.2_a2.3"
+  "com.github.nscala-time" %% "nscala-time"             % "1.8.0",
+  "com.github.ancane"      %% "haldr"                   % "0.1",
+  "com.github.enpassant"   %% "wooster"                 % "1.0-SNAPSHOT",
+  "org.json4s"             %% "json4s-jackson"          % "3.2.10",
+  "org.json4s"             %% "json4s-ext"              % "3.2.10",
+  "io.spray"               %% "spray-testkit"           % sprayVersion   % "test",
+  "nl.grons"               %% "metrics-scala"           % "3.5.2_a2.3"
 )
 
 scalacOptions ++= Seq(

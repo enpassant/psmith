@@ -12,15 +12,14 @@ import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import akka.pattern.{ask, pipe}
+import java.util.UUID
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.{Success, Failure, Random}
 import spray.caching._
 
-class Proxy(val config: Config, val routerDefined: Boolean)
-extends Actor with ActorLogging
-{
+class Proxy(val config: Config) extends Actor with ActorLogging {
   import context.dispatcher
   val managedHeaders = List("host", "server", "date", "content-type",
     "content-length", "transfer-encoding", "timeout-access")
@@ -225,7 +224,7 @@ extends Actor with ActorLogging
   }
 
   def restartTick(route: Route): Route = {
-    if (routerDefined) {
+    if (config.router.isDefined) {
       val tickActor = context.actorSelection("../" + TickActor.name)
       requestContext =>
         tickActor ! Restart
@@ -235,6 +234,15 @@ extends Actor with ActorLogging
 
   val binding = Http().bindAndHandle(handler = proxy,
     interface = config.host, port = config.port)
+  binding foreach { serverBinding =>
+    log.info(s"Micro service psmith listen on ${serverBinding.localAddress}")
+    if (config.router.isDefined) {
+      val microService = MicroService(UUID.randomUUID.toString, "",
+        config.host, serverBinding.localAddress.getPort, config.mode)
+      val tickActor = Supervisor.getChild(TickActor.name)
+      tickActor ! microService
+    }
+  }
 
   def receive = {
     case msg =>
@@ -243,7 +251,7 @@ extends Actor with ActorLogging
 }
 
 object Proxy {
-  def props(config: Config, routerDefined: Boolean) =
-    Props(new Proxy(config, routerDefined))
+  def props(config: Config) =
+    Props(new Proxy(config))
   def name = "proxy"
 }
